@@ -4,6 +4,7 @@
  * (C) Copyright 2011, Stefan Kristiansson <stefan.kristiansson@saunalahti.fi>
  */
 
+#include <or1k-asm.h>
 #include "spr-defs.h"
 #include "board.h"
 

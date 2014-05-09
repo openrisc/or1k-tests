@@ -45,6 +45,7 @@ TODO:	 Substraction carry out testing.
 //////////////////////////////////////////////////////////////////////
 	
 	
+#include <or1k-asm.h>
 #include "spr-defs.h"
 #include "board.h"
 		

@@ -44,6 +44,7 @@
 
 */
 	
+#include <or1k-asm.h>
 #include "spr-defs.h"
 
 /* =================================================== [ exceptions ] === */

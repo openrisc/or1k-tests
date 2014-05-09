@@ -1,3 +1,4 @@
+#include <or1k-asm.h>
 .section .text
 	.global stack
 	.align	4
