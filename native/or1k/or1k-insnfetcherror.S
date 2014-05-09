@@ -1,6 +1,6 @@
 /*
 
-	OR1K instruction alignment fetch exception test
+	OR1K instruction bus error fetch exception test
 	
 	Jump to an invalid address from a l.jr instruction.
 
