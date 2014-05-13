@@ -62,8 +62,7 @@
 	.global _start
 	l.movhi r4, hi(_start)
 	l.ori 	r4, r4, lo(_start)
-	l.jr    r4
-	l.nop
+	OR1K_DELAYED_NOP(l.jr    r4)
 
 	// Illegal instruction handler.
 	.org 0x700
@@ -85,8 +84,7 @@
 	.global _start
 _start:	
 	// Kick off test
-	l.jal   _main
-	l.nop
+	OR1K_DELAYED_NOP(l.jal   _main)
 	
 
 
@@ -99,18 +97,50 @@ _main:
 	l.movhi	r2,0	/* clear r2 - used as exception main function counter */
 
 	/* An unsupported instruction - customs */
-	l.cust1
-	l.addi	r2,r2,1
+#define TEST_CUST(N)                            \
+        l.mfspr r3,r0,SPR_UPR;                  \
+        l.srli  r3,r3,24;                       \
+        l.andi  r3,r3,(1<<(N-1));               \
+        l.sfne  r3,r0;                          \
+        OR1K_DELAYED_NOP(l.bf    have_cust##N); \
+	l.cust1;                                \
+	l.addi	r2,r2,1;                        \
+have_cust##N:
+        TEST_CUST(1)
+        TEST_CUST(2)
+        TEST_CUST(3)
+        TEST_CUST(4)
+        TEST_CUST(5)
+        TEST_CUST(6)
+        TEST_CUST(7)
+        TEST_CUST(8)
 
+        l.mfspr r3,r0,SPR_UPR  
+        l.andi  r3,r3,SPR_UPR_MP
+        l.sfne  r3,r0
+        OR1K_DELAYED_NOP(l.bf    have_mac)
 	l.msb	r0,r0
 	l.addi	r2,r2,1
+have_mac:       
 
-	lf.add.d r4,r5,r6
+        l.mfspr r3,r0,SPR_CPUCFGR
+        l.andi  r3,r3,SPR_CPUCFGR_OF32S
+        l.sfne  r3,r0
+        OR1K_DELAYED_NOP(l.bf    have_of32s)
+	lf.add.s r4,r5,r6
 	l.addi	r2,r2,1
+have_of32s:     
+
+        l.mfspr r3,r0,SPR_CPUCFGR
+        l.andi  r3,r3,SPR_CPUCFGR_OF64S
+        l.sfne  r3,r0
+        OR1K_DELAYED_NOP(l.bf    have_of64s)
+	lf.add.s r4,r5,r6
+	l.addi	r2,r2,1
+have_of64s:     
 
 	l.sfeq	r1,r2
-
-	l.bf	test_ok
+	OR1K_DELAYED_NOP(l.bf	test_ok)
 
 test_fail:	
 	l.movhi	r3,0xbaaa
