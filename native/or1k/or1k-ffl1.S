@@ -54,8 +54,7 @@
 	.global _start
 	l.movhi r4, hi(_start)
 	l.ori r4, r4, lo(_start)
-	l.jr    r4
-	l.nop
+	OR1K_DELAYED_NOP(l.jr    r4)
 
 /* ---[ 0x700: Illegal instruction exception ]-------------------------- */
         .org 0x700
@@ -76,8 +75,7 @@ _start:
 	l.mfspr r24,r0,SPR_UPR
 	l.andi  r26,r24,SPR_UPR_ICP
 	l.sfeq  r26,r0
-	l.bf    .L8
-	l.nop
+	OR1K_DELAYED_NOP(l.bf    .L8)
 	
 	/* Disable IC */
 	l.mfspr r6,r0,SPR_SR
@@ -113,8 +111,10 @@ _start:
 .L7:
 	l.mtspr r0,r6,SPR_ICBIR
 	l.sfne  r6,r5
-	l.bf    .L7
-	l.add   r6,r6,r14
+	OR1K_DELAYED(
+	OR1K_INST(l.add   r6,r6,r14),
+	OR1K_INST(l.bf    .L7)
+	)
 	
 	/* Enable IC */
 	l.mfspr r6,r0,SPR_SR
@@ -135,8 +135,7 @@ _start:
         l.mfspr r24,r0,SPR_UPR
         l.andi  r26,r24,SPR_UPR_DCP
         l.sfeq  r26,r0
-        l.bf    .L10
-        l.nop
+        OR1K_DELAYED_NOP(l.bf    .L10)
         /* Disable DC */
         l.mfspr r6,r0,SPR_SR
         l.addi  r5,r0,-1
@@ -167,16 +166,17 @@ _start:
 .L9:
         l.mtspr r0,r6,SPR_DCBIR
         l.sfne  r6,r5
-        l.bf    .L9
-	l.add   r6,r6,r14
+	OR1K_DELAYED(
+	OR1K_INST(l.add   r6,r6,r14),
+        OR1K_INST(l.bf    .L9)
+	)
         /* Enable DC */
         l.mfspr r6,r0,SPR_SR
         l.ori   r6,r6,SPR_SR_DCE
         l.mtspr r0,r6,SPR_SR
 .L10:
 	// Kick off test
-	l.jal   _main
-	l.nop
+	OR1K_DELAYED_NOP(l.jal   _main)
 	
 
 
@@ -208,14 +208,12 @@ ff1_loop:
 				// result from l.ff1)
 	REPORT(r4)		// Report value
 	l.sfne	r5, r4		// r5 should = r4
-	l.bf	ff1_error
+	OR1K_DELAYED_NOP(l.bf	ff1_error)
 	l.sfne	r8, r4		// r8 should = r4
-	l.bf	fl1_error
+	OR1K_DELAYED_NOP(l.bf	fl1_error)
 	l.sfne	r6, r4		// Check if loop is finished
-	l.bf 	ff1_loop	// Keep checking
-	l.nop
-	l.j	ffl1_test2	// All OK, next test
-	l.nop	
+	OR1K_DELAYED_NOP(l.bf 	ff1_loop)	// Keep checking
+	OR1K_DELAYED_NOP(l.j	ffl1_test2)	// All OK, next test
 
 ffl1_test2:
 	// Try 3 values - all '0', all '1' and a block of values in between
@@ -231,9 +229,9 @@ ffl1_test2:
 	REPORT(r7)
 	REPORT(r8)
 	l.sfnei	r7, 0
-	l.bf	ff1_error
+	OR1K_DELAYED_NOP(l.bf	ff1_error)
 	l.sfnei	r8, 0
-	l.bf	fl1_error
+	OR1K_DELAYED_NOP(l.bf	fl1_error)
 
 	// Test '0xffffffff'
 	REPORT(r5)
@@ -242,9 +240,9 @@ ffl1_test2:
 	REPORT(r7)
 	REPORT(r8)
 	l.sfnei	r7, 1
-	l.bf	ff1_error
+	OR1K_DELAYED_NOP(l.bf	ff1_error)
 	l.sfnei	r8, 32
-	l.bf	fl1_error
+	OR1K_DELAYED_NOP(l.bf	fl1_error)
 
 	// Test '0x00ffff00'
 	REPORT(r6)
@@ -253,11 +251,10 @@ ffl1_test2:
 	REPORT(r7)
 	REPORT(r8)
 	l.sfnei	r7, 9
-	l.bf	ff1_error
+	OR1K_DELAYED_NOP(l.bf	ff1_error)
 	l.sfnei	r8, 24
-	l.bf	fl1_error
-	l.nop
-	l.j ffl1_ok	// Tests OK
+	OR1K_DELAYED_NOP(l.bf	fl1_error)
+	OR1K_DELAYED_NOP(l.j ffl1_ok)	// Tests OK
 
 ff1_error:
 	l.movhi r3, hi(0xbaaadff1)
