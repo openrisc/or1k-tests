@@ -43,7 +43,7 @@
 */
 	
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
@@ -53,10 +53,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -70,10 +70,10 @@
 	// Steps over exception-causing instruction
 	.org 0x200
 	l.ori	r5,r0,1		/* set "exception flag" */
-	l.mfspr	r3,r0,SPR_EPCR_BASE	/* Get PC of bad jump instruction */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get PC of bad jump instruction */
 	l.nop 	0x2
 	l.addi	r3,r3,4 	/* Step over error instruction */
-	l.mtspr	r0,r3,SPR_EPCR_BASE
+	l.mtspr	r0,r3,OR1K_SPR_SYS_EPCR_BASE
 	l.addi	r1,r1,1		/* Increment exception counter */
 	l.or	r3,r1,r0	/* Move counter to r3 to report */
 	l.nop 	0x2

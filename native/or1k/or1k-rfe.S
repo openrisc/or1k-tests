@@ -45,7 +45,7 @@ r5:	 temp register
 //////////////////////////////////////////////////////////////////////
 
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 
 
@@ -58,10 +58,10 @@ r5:	 temp register
 	l.movhi r0, 0
 	l.movhi	r6, 0
 	/* Clear status register */
-	l.ori r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -76,11 +76,11 @@ r5:	 temp register
 	be in r1, desired SR will be in r2.
 	Put EPCR+4 into r9 - link register, function will return
 	that way*/
-	l.mfspr	r3,r0,SPR_EPCR_BASE
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE
 	l.nop	0x2 /* report the value */
 	l.addi	r9,r3,4 /* One instruction past l.trap that got us here */
-	l.mtspr	r0,r1,SPR_EPCR_BASE
-	l.mtspr	r0,r2,SPR_ESR_BASE
+	l.mtspr	r0,r1,OR1K_SPR_SYS_EPCR_BASE
+	l.mtspr	r0,r2,OR1K_SPR_SYS_ESR_BASE
 	l.rfe
 	l.nop	1
 /* =================================================== [ text ] === */
@@ -100,7 +100,7 @@ _start:
 #define CALL_FN_WITH_RFE(fn)		\
 	l.movhi	r1,hi(fn)		;\
 	l.ori	r1,r1,lo(fn)		;\
-	l.mfspr	r2,r0,SPR_SR		;\
+	l.mfspr	r2,r0,OR1K_SPR_SYS_SR_ADDR		;\
 	l.trap	15
 	
 	.global _main
@@ -137,8 +137,8 @@ check_for_restart:
 	l.bf	finish
 	l.nop
 	l.ori	r6, r6, 1
-	l.mfspr	r4,r0,SPR_SR
-	l.andi	r4,r4,SPR_SR_ICE /* is instruction cache enabled? */
+	l.mfspr	r4,r0,OR1K_SPR_SYS_SR_ADDR
+	l.andi	r4,r4,OR1K_SPR_SYS_SR_ICE_MASK /* is instruction cache enabled? */
 	l.sfgtu	r4,r0
 	l.bnf	restart_with_caches
 	l.nop

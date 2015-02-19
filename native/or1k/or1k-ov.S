@@ -36,7 +36,7 @@ TODO:	 Check range exception handling in delay slots
 //////////////////////////////////////////////////////////////////////
 	
 	
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include <or1k-asm.h>
 
 	
@@ -48,10 +48,10 @@ TODO:	 Check range exception handling in delay slots
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -66,7 +66,7 @@ TODO:	 Check range exception handling in delay slots
 
 /* ---[ 0x700: Illegal instruction exception ]-------------------------- */
         .org 0x700
-	l.mfspr	r3,r0,SPR_EPCR_BASE 	;// Get EPC
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE 	;// Get EPC
 	l.nop	2			;// Report it!
 	l.nop 	0x1
 
@@ -89,15 +89,15 @@ TODO:	 Check range exception handling in delay slots
 	INCREMENT_EXCEPTION_COUNTER
 
 	// Clear OV in ESR
-	l.mfspr	r3,r0,SPR_ESR_BASE 	;// Get ESR
+	l.mfspr	r3,r0,OR1K_SPR_SYS_ESR_BASE 	;// Get ESR
 	l.nop	2
-	l.xori	r3, r3,SPR_SR_OV	;// Clear OV bit
-	l.mtspr	r0,r3,SPR_ESR_BASE 	;// Get EPC 
+	l.xori	r3, r3,OR1K_SPR_SYS_SR_OV_MASK	;// Clear OV bit
+	l.mtspr	r0,r3,OR1K_SPR_SYS_ESR_BASE 	;// Get EPC 
 	
-	l.mfspr	r3,r0,SPR_EPCR_BASE 	;// Get EPC 
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE 	;// Get EPC 
 	l.nop	2
 	l.addi	r3, r3, 0x4		;// Increment
-	l.mtspr	r0,r3,SPR_EPCR_BASE 	;// Get EPC 
+	l.mtspr	r0,r3,OR1K_SPR_SYS_EPCR_BASE 	;// Get EPC 
 	// For now, increment EPCR so we step over instruction and continue
 
 	l.lwz	r3, 0(r0)
@@ -152,16 +152,16 @@ _start:
 
 
 #define CHECK_OV_CLEAR			\
-	l.mfspr	r20, r0, SPR_SR	;	\
-	l.andi	r21, r20, SPR_SR_OV ;	\
+	l.mfspr	r20, r0, OR1K_SPR_SYS_SR_ADDR	;	\
+	l.andi	r21, r20, OR1K_SPR_SYS_SR_OV_MASK ;	\
 	l.sfne	r21, r0		  ;	\
 	l.bf	_fail		  ;	\
 	l.nop				
 
 #define CHECK_OV_SET			\
-	l.mfspr	r20, r0, SPR_SR	;	\
-	l.andi	r21, r20, SPR_SR_OV ;	\
-	l.sfnei	r21, SPR_SR_OV	  ;	\
+	l.mfspr	r20, r0, OR1K_SPR_SYS_SR_ADDR	;	\
+	l.andi	r21, r20, OR1K_SPR_SYS_SR_OV_MASK ;	\
+	l.sfnei	r21, OR1K_SPR_SYS_SR_OV_MASK	  ;	\
 	l.bf	_fail		  ;	\
 	l.addi	r12, r12, 0x1	  ;	// Increment expected counter
 	
@@ -393,14 +393,14 @@ _main:
 	
 	// First enable OV exception in SR
 	
-	l.mfspr	r20, r0, SPR_SR
-	l.ori	r21, r20, SPR_SR_OVE
-	l.mtspr r0, r21, SPR_SR
+	l.mfspr	r20, r0, OR1K_SPR_SYS_SR_ADDR
+	l.ori	r21, r20, OR1K_SPR_SYS_SR_OVE_MASK
+	l.mtspr r0, r21, OR1K_SPR_SYS_SR_ADDR
 
 	// Check it's set
-	l.mfspr	r20, r0, SPR_SR
-	l.andi	r21, r20, SPR_SR_OVE
-	l.sfnei	r21, SPR_SR_OVE
+	l.mfspr	r20, r0, OR1K_SPR_SYS_SR_ADDR
+	l.andi	r21, r20, OR1K_SPR_SYS_SR_OVE_MASK
+	l.sfnei	r21, OR1K_SPR_SYS_SR_OVE_MASK
 	l.bf	_fail
 	l.nop
 

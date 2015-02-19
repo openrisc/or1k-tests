@@ -37,7 +37,7 @@
 	
 	
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"

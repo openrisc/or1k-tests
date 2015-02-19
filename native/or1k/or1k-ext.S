@@ -34,7 +34,7 @@
 //////////////////////////////////////////////////////////////////////
 	
 #include <or1k-asm.h>	
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 
 
@@ -47,10 +47,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start

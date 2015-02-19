@@ -37,7 +37,7 @@
 //////////////////////////////////////////////////////////////////////
 	
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
@@ -47,10 +47,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -63,10 +63,10 @@
 	.org 0x500
 	l.addi	r1,r1,1
 	/* Clear interrupt pending bit */
-	l.mfspr	r11,r0, SPR_TTMR
-	l.movhi	r12, hi(SPR_TTMR_IP)
+	l.mfspr	r11,r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.movhi	r12, hi(OR1K_SPR_TICK_TTMR_IP_MASK)
 	l.xor	r11, r11, r12
-	l.mtspr	r0, r11, SPR_TTMR
+	l.mtspr	r0, r11, OR1K_SPR_TICK_TTMR_ADDR
 	/* increment exception counter */
 	l.addi	r2, r2, 1
 	/* report nop */
@@ -122,21 +122,21 @@ _main:
 	l.addi	r10, r10, 1
 
 	/* enable timer interrupts, clear timer mode reg */
-	l.mfspr	r3, r0, SPR_SR
-	l.ori 	r3, r3, SPR_SR_TEE
-	l.mtspr r0, r0, SPR_TTMR
-	l.mtspr	r0, r3, SPR_SR
+	l.mfspr	r3, r0, OR1K_SPR_SYS_SR_ADDR
+	l.ori 	r3, r3, OR1K_SPR_SYS_SR_TEE_MASK
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.mtspr	r0, r3, OR1K_SPR_SYS_SR_ADDR
 
 	/* Restart timer causing interrupt */
-	l.movhi r4,hi(SPR_TTMR_RT | SPR_TTMR_IE)
+	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	/* interrupt after 40 cycles */
 	l.ori	r6, r0, 60
 	
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
-	l.mtspr r0,r5,SPR_TTMR		# set TTMR
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
+	l.mtspr r0,r5,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
 
 	/* loop checking r2 which will be incremented on interrupt */
 	l.movhi	r1,0
@@ -191,7 +191,7 @@ restart_timer_interrupt_check:
 	FOURKADDS()
 	
 check_results:
-	l.mtspr r0,r0,SPR_TTMR /* clear ttmr, turn it off */
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR /* clear ttmr, turn it off */
 	l.ori	r3,r1,0
 	l.nop 0x2
 	/* Check results OK */

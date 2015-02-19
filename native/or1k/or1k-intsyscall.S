@@ -1,5 +1,5 @@
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 	
 /*
@@ -59,10 +59,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)
@@ -92,8 +92,8 @@ _user_irq_handler:
 	l.ori	r7, r12, 0x1 	/* intgen IRQ clear address */
 	l.sb	0(r7), r0 	/* Any write clears the bit */
 	/* Clear OR1200 PICSR */
-	l.mfspr r7, r0, SPR_PICSR
-	l.mtspr r0, r7, SPR_PICSR
+	l.mfspr r7, r0, OR1K_SPR_PIC_PICSR_ADDR
+	l.mtspr r0, r7, OR1K_SPR_PIC_PICSR_ADDR
 
 	l.rfe
 
@@ -103,14 +103,14 @@ _user_irq_handler:
 	.global _syscall_handler
 _syscall_handler:	
 	l.addi r15, r15, 1
-	l.mfspr r7, r0, SPR_ESR_BASE /* Put ESR in r7, set back to ESR later */
-	l.mfspr r8, r0, SPR_EPCR_BASE/* Put EPCR in r8,set back to EPCR later*/
+	l.mfspr r7, r0, OR1K_SPR_SYS_ESR_BASE /* Put ESR in r7, set back to ESR later */
+	l.mfspr r8, r0, OR1K_SPR_SYS_EPCR_BASE/* Put EPCR in r8,set back to EPCR later*/
 	/* Unset IEE and TEE bits of SR */
-	l.ori r4, r0, SPR_SR_IEE|SPR_SR_TEE
+	l.ori r4, r0, OR1K_SPR_SYS_SR_IEE_MASK|OR1K_SPR_SYS_SR_TEE_MASK
 	l.ori r13, r0, 0xffff
 	l.xor r13, r13, r4
 	l.and r13, r7, r13 /* New SR without interrupt bits set */
-	l.mtspr r0, r13, SPR_ESR_BASE /* SR after l.rfe */
+	l.mtspr r0, r13, OR1K_SPR_SYS_ESR_BASE /* SR after l.rfe */
 	/* Report values , 0x00000c00 == system call report*/
 	l.ori r3, r0, 0x0c00
 	l.nop 2
@@ -120,7 +120,7 @@ _syscall_handler:
 	l.nop 2
 	l.movhi r4, hi(_syscall_function)
 	l.ori r4, r4, lo(_syscall_function)
-	l.mtspr r0, r4, SPR_EPCR_BASE
+	l.mtspr r0, r4, OR1K_SPR_SYS_EPCR_BASE
 	l.rfe
 	
 
@@ -145,12 +145,12 @@ _main:
 	#
 	l.movhi r5,0xffff
 	l.ori   r5,r5,0xffff
-	l.mtspr r0,r5,SPR_PICMR		# set PICMR
+	l.mtspr r0,r5,OR1K_SPR_PIC_PICMR_ADDR		# set PICMR
 
 	/* Enable Interrupts */
-        l.mfspr r6,r0,SPR_SR
-        l.ori   r6,r6,SPR_SR_IEE
-        l.mtspr r0,r6,SPR_SR
+        l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
+        l.ori   r6,r6,OR1K_SPR_SYS_SR_IEE_MASK
+        l.mtspr r0,r6,OR1K_SPR_SYS_SR_ADDR
 
 	l.movhi r15, 0
 	l.movhi r6, 0
@@ -376,8 +376,8 @@ _fail:
 _syscall_function:
 	/* r7 and r8 hold actual real ESR and EPCR, respectively */
 	/* We'll restore them now */
-	l.mtspr r0, r7, SPR_ESR_BASE /* SR before syscall */
-	l.mtspr r0, r8, SPR_EPCR_BASE
+	l.mtspr r0, r7, OR1K_SPR_SYS_ESR_BASE /* SR before syscall */
+	l.mtspr r0, r8, OR1K_SPR_SYS_EPCR_BASE
 	l.add r6, r6, r3 /* Add syscall number to our counter */
 	l.movhi r4, hi(0x00400000) /* 4MB mark of memory */
 	/* Ensure memory access OK */

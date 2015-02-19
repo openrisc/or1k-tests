@@ -46,7 +46,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 	
 /* =================================================== [ exceptions ] === */
@@ -57,10 +57,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)
@@ -81,9 +81,9 @@
 	
 _bus_handler:
 	l.ori	r7,r0,1		/* set "exception flag" */
-	l.mfspr	r3,r0,SPR_EPCR_BASE	/* Get EPC */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get EPC */
 	l.nop	2
-	l.mfspr	r3,r0,SPR_EEAR_BASE	/* Get EEA */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EEAR_BASE	/* Get EEA */
 	l.nop	2
 	l.addi	r11,r11,1		/* Increment 1st exception counter */
 	l.sfeqi r2, 0xd /* Is this a data bus test, if so return with l.rfe */
@@ -97,15 +97,15 @@ _bus_handler:
 	l.sw 	0x0(r0), r5 /* Write "l.j r9" to address 0x0 in RAM */
 	l.movhi	r5,0x1500	/* Put a "l.nop"  instruction in r5 */
 	l.sw	0x4(r0),r5	/* Write l.nop instruction to RAM addr 0x4 */
-	l.mtspr	r0,r0,SPR_ICBIR		/* Invalidate line 0 of cache */
-	l.mtspr	r0,r0,SPR_EPCR_BASE	/* RFE to 0x0, which is l.jr r9 */
+	l.mtspr	r0,r0,OR1K_SPR_ICACHE_ICBIR_ADDR		/* Invalidate line 0 of cache */
+	l.mtspr	r0,r0,OR1K_SPR_SYS_EPCR_BASE	/* RFE to 0x0, which is l.jr r9 */
 1:	l.rfe
 
 /* ---[ 0x600: ALIGN error ]------------------------------------------------ */
 	.org 0x600
 	.global	_align_handler
 _align_handler:	
-	l.mfspr	r3,r0,SPR_EPCR_BASE	/* Get EPC */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get EPC */
 	l.nop	2
 	l.addi	r11,r11,1		/* Increment 1st exception counter */
 	l.movhi	r5,0			/* Clear the pointer register */
@@ -116,16 +116,16 @@ _align_handler:
 	.org 0x700
 	.global _illinsn_handler
 _illinsn_handler:
-	l.mfspr	r3,r0,SPR_EPCR_BASE	/* Get EPC */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get EPC */
 	l.nop	2
 	l.addi	r11,r11,1		/* Increment 1st exception counter */
 #ifdef __OR1K_DELAY__
 	/* Delay slot test needs this instruction "fixed" */
 	l.movhi	r5,0x1500		/* Put a "l.nop"  instruction in r5 */
 	l.sw	0x4(r0),r5	/* Write l.nop instruction to RAM addr 0x4 */
-	l.mtspr	r0,r0,SPR_ICBIR		/* Invalidate line 0 of cache */
+	l.mtspr	r0,r0,OR1K_SPR_ICACHE_ICBIR_ADDR		/* Invalidate line 0 of cache */
 #endif
-	l.mtspr	r0,r0,SPR_EPCR_BASE	/* Jump to 0, which is l.jr r9 */
+	l.mtspr	r0,r0,OR1K_SPR_SYS_EPCR_BASE	/* Jump to 0, which is l.jr r9 */
 	l.rfe
 
 /* ---[ 0x900: DTLB exception ]--------------------------------------------- */
@@ -350,7 +350,7 @@ _illegal1:
 	l.sw 	0x4(r0), r5   	/* Write illegal instruction to RAM addr 0x4 */
 	l.movhi r5, 0x1500 	/* l.nop after illegal instruction */
 	l.sw 	0x8(r0), r5   	/* Write nop to RAM addr 0x8 */
-	l.mtspr r0,r0,SPR_ICBIR /* Invalidate line 0 of cache */
+	l.mtspr r0,r0,OR1K_SPR_ICACHE_ICBIR_ADDR /* Invalidate line 0 of cache */
 	/* Jump to 0x4 - illegal opcode instruction */
 	l.ori 	r6, r0, 0x4
 	OR1K_DELAYED(
@@ -365,7 +365,7 @@ _illegal1:
 	
 	l.movhi r5, 0xee00 	/* Put an illegal instruction in r5 */
 	l.sw 	0x4(r0), r5   	/* Write illegal instruction to RAM addr 0x4 */
-	l.mtspr r0,r0,SPR_ICBIR /* Invalidate line 0 of cache */	
+	l.mtspr r0,r0,OR1K_SPR_ICACHE_ICBIR_ADDR /* Invalidate line 0 of cache */	
 	l.jalr 	r0 /* Jump to address 0, will be a jump back but with an illegal
 	             dslot instruction which will befixed by handler */
 	l.addi 	r12,r12,1 	/* Increment 2nd exception counter */

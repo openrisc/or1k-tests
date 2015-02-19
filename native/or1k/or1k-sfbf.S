@@ -12,7 +12,7 @@
 
 */
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
@@ -22,10 +22,10 @@
         .org 0x100
 	l.movhi 	r0, 0
 	/* Clear status register */
-	l.ori 		r1, r0, SPR_SR_SM
-	l.mtspr 	r0, r1, SPR_SR
+	l.ori 		r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr 	r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr 	r0, r0, SPR_TTMR
+	l.mtspr 	r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -36,10 +36,10 @@
 
 	/* Timer exception, clear interrupt bit, and return */
 	.org 0x500
-	l.mfspr	r11,r0, SPR_TTMR
-	l.movhi	r12, hi(SPR_TTMR_IP)
+	l.mfspr	r11,r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.movhi	r12, hi(OR1K_SPR_TICK_TTMR_IP_MASK)
 	l.xor	r11, r11, r12
-	l.mtspr	r0, r11, SPR_TTMR
+	l.mtspr	r0, r11, OR1K_SPR_TICK_TTMR_ADDR
 	l.addi	r13,r13,1
 	l.rfe
 
@@ -558,14 +558,14 @@ test_fail:
 
 test_ok:
 	/* Rerun test with timers enabled if we have them */
-	l.mfspr r2,r0,SPR_UPR
-	l.andi 	r2,r2,SPR_UPR_TTP
+	l.mfspr r2,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi 	r2,r2,OR1K_SPR_SYS_UPR_TTP_MASK
 	l.sfeq	r2,r0
 	l.bf	test_finish
 	l.nop
 	/* We do have timers, in this case check it it's enabled yet */
-	l.mfspr	r2,r0,SPR_SR
-	l.andi	r2,r2,SPR_SR_TEE
+	l.mfspr	r2,r0,OR1K_SPR_SYS_SR_ADDR
+	l.andi	r2,r2,OR1K_SPR_SYS_SR_TEE_MASK
 	l.sfeq 	r2,r0
 	/* we've not run through with timers so enable them and restart */
 	l.bf	enable_timers_and_restart
@@ -585,21 +585,21 @@ test_finish:
 
 enable_timers_and_restart:
 	/* enable timer interrupts in SR, clear timer mode reg */
-	l.mfspr	r3, r0, SPR_SR
-	l.ori 	r3, r3, SPR_SR_TEE
-	l.mtspr r0, r0, SPR_TTMR
-	l.mtspr	r0, r3, SPR_SR
+	l.mfspr	r3, r0, OR1K_SPR_SYS_SR_ADDR
+	l.ori 	r3, r3, OR1K_SPR_SYS_SR_TEE_MASK
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.mtspr	r0, r3, OR1K_SPR_SYS_SR_ADDR
 
 	/* Setup timer mode register to run in restart mode, with interrupts */
-	l.movhi r4,hi(SPR_TTMR_RT | SPR_TTMR_IE)
+	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	/* interrupt every 30 cycles */
 	l.ori	r6, r0, 30
 
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
-	l.mtspr r0,r5,SPR_TTMR		# set TTMR
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
+	l.mtspr r0,r5,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
 
 	/* clear r13, tick interrupt counter */
 	l.movhi	r13, 0

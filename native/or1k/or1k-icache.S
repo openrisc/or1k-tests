@@ -5,32 +5,32 @@
  */
 
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 
 #define ENABLE_IC()			;\
-	l.mfspr	r31, r0, SPR_SR		;\
-	l.ori	r31, r31, SPR_SR_ICE	;\
-	l.mtspr	r0, r31, SPR_SR
+	l.mfspr	r31, r0, OR1K_SPR_SYS_SR_ADDR		;\
+	l.ori	r31, r31, OR1K_SPR_SYS_SR_ICE_MASK	;\
+	l.mtspr	r0, r31, OR1K_SPR_SYS_SR_ADDR
 
 #define DISABLE_IC()			;\
-	l.mfspr	r31, r0, SPR_SR		;\
+	l.mfspr	r31, r0, OR1K_SPR_SYS_SR_ADDR		;\
 	l.addi	r30, r0, -1		;\
-	l.xori	r30, r30, SPR_SR_ICE	;\
+	l.xori	r30, r30, OR1K_SPR_SYS_SR_ICE_MASK	;\
 	l.and	r30, r30, r31		;\
-	l.mtspr	r0, r30, SPR_SR
+	l.mtspr	r0, r30, OR1K_SPR_SYS_SR_ADDR
 
 #define ENABLE_DC()			;\
-	l.mfspr	r31, r0, SPR_SR		;\
-	l.ori	r31, r31, SPR_SR_DCE	;\
-	l.mtspr	r0, r31, SPR_SR
+	l.mfspr	r31, r0, OR1K_SPR_SYS_SR_ADDR		;\
+	l.ori	r31, r31, OR1K_SPR_SYS_SR_DCE_MASK	;\
+	l.mtspr	r0, r31, OR1K_SPR_SYS_SR_ADDR
 
 #define DISABLE_DC()			;\
-	l.mfspr	r31, r0, SPR_SR		;\
+	l.mfspr	r31, r0, OR1K_SPR_SYS_SR_ADDR		;\
 	l.addi	r30, r0, -1		;\
-	l.xori	r30, r30, SPR_SR_DCE	;\
+	l.xori	r30, r30, OR1K_SPR_SYS_SR_DCE_MASK	;\
 	l.and	r30, r30, r31		;\
-	l.mtspr	r0, r30, SPR_SR
+	l.mtspr	r0, r30, OR1K_SPR_SYS_SR_ADDR
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
@@ -40,10 +40,10 @@
         .org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)

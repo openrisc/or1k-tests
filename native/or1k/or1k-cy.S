@@ -46,7 +46,7 @@ TODO:	 Substraction carry out testing.
 	
 	
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 		
 /* =================================================== [ exceptions ] === */
@@ -57,10 +57,10 @@ TODO:	 Substraction carry out testing.
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -111,16 +111,16 @@ _start:
 
 
 #define CHECK_CY_CLEAR			\
-	l.mfspr	r6, r0, SPR_SR	;	\
-	l.andi	r6, r6, SPR_SR_CY ;	\
+	l.mfspr	r6, r0, OR1K_SPR_SYS_SR_ADDR	;	\
+	l.andi	r6, r6, OR1K_SPR_SYS_SR_CY_MASK ;	\
 	l.sfne	r6, r0		  ;	\
 	l.bf	_fail		  ;	\
 	l.nop				
 
 #define CHECK_CY_SET			\
-	l.mfspr	r6, r0, SPR_SR	;	\
-	l.andi	r6, r6, SPR_SR_CY ;	\
-	l.sfnei	r6, SPR_SR_CY	  ;	\
+	l.mfspr	r6, r0, OR1K_SPR_SYS_SR_ADDR	;	\
+	l.andi	r6, r6, OR1K_SPR_SYS_SR_CY_MASK ;	\
+	l.sfnei	r6, OR1K_SPR_SYS_SR_CY_MASK	  ;	\
 	l.bf	_fail		  ;	\
 	l.nop				
 	

@@ -42,15 +42,15 @@
 //////////////////////////////////////////////////////////////////////
 
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 
 #define TEST_DSX_AND_RETURN 							; \
-	l.mfspr	r3,r0,SPR_EPCR_BASE	/* Get EPC */ 				; \
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get EPC */ 				; \
 	l.nop	2                       /* Report PC for diagnostic purpose */ 	; \
 	/* Check SR[DSX] was as expected */ 					; \
-	l.mfspr	r8,r0,SPR_SR    	/* Get SR */ 				; \
-	l.andi	r8,r8,SPR_SR_DSX	/* Clear all bits except DSX */		; \
+	l.mfspr	r8,r0,OR1K_SPR_SYS_SR_ADDR    	/* Get SR */ 				; \
+	l.andi	r8,r8,OR1K_SPR_SYS_SR_DSX_MASK	/* Clear all bits except DSX */		; \
 	l.xor	r8,r8,r10		/* r8 will be >0 if error */ 		; \
 	l.sfne	r8,r0								; \
 	l.bf	test_fail 							; \
@@ -61,7 +61,7 @@
 	l.srli	r8,r10,11		/* If we were in delay slot, add extra 	; \
 					4 to PC (0x2000>>11=4)*/ 		; \
 	l.add	r3,r3,r8 							; \
-	l.mtspr	r0,r3,SPR_EPCR_BASE 						; \
+	l.mtspr	r0,r3,OR1K_SPR_SYS_EPCR_BASE 						; \
 	l.rfe
 	
 	
@@ -73,10 +73,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)
@@ -144,42 +144,42 @@ _start:
 	/* Should cause an alignment error */
 	l.lwz	r1,1(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfeq	r0,r0
 	l.bf	test_func
 	/* Should cause an alignment error */
 	l.lwz	r1,1(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfne	r0,r0
 	l.bnf	test_func
 	/* Should cause an alignment error */
 	l.lwz	r1,1(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.j	test_func
 	/* Should cause an alignment error */
 	l.lwz	r1,1(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.jal	test_func
 	/* Should cause an alignment error */
 	l.lwz	r1,1(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jr	r5
 	/* Should cause an alignment error */
 	l.lwz	r1,1(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jalr	r5
@@ -200,42 +200,42 @@ _start:
 	/* Should cause an illegal insn error */
 	.word 0xef000000
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfeq	r0,r0
 	l.bf	test_func
 	/* Should cause an illegal insn error */
 	.word 0xef000000
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfne	r0,r0
 	l.bnf	test_func
 	/* Should cause an illegal insn error */
 	.word 0xef000000
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.j	test_func
 	/* Should cause an illegal insn error */
 	.word 0xef000000
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.jal	test_func
 	/* Should cause an illegal insn error */
 	.word 0xef000000
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jr	r5
 	/* Should cause an illegal insn error */
 	.word 0xef000000
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jalr	r5
@@ -255,42 +255,42 @@ _start:
 	/* This should cause a bus error */
 	l.lwz	r1,-4(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfeq	r0,r0
 	l.bf	test_func
 	/* This should cause a bus error */
 	l.lwz	r1,-4(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfne	r0,r0
 	l.bnf	test_func
 	/* This should cause a bus error */
 	l.lwz	r1,-4(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.j	test_func
 	/* This should cause a bus error */
 	l.lwz	r1,-4(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.jal	test_func
 	/* This should cause a bus error */
 	l.lwz	r1,-4(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jr	r5
 	/* This should cause a bus error */
 	l.lwz	r1,-4(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jalr	r5
@@ -310,42 +310,42 @@ _start:
 	/* Should cause an trap error */
 	l.trap 0
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfeq	r0,r0
 	l.bf	test_func
 	/* Should cause an trap error */
 	l.trap 0
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfne	r0,r0
 	l.bnf	test_func
 	/* Should cause an trap error */
 	l.trap 0
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.j	test_func
 	/* Should cause an trap error */
 	l.trap 0
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.jal	test_func
 	/* Should cause an trap error */
 	l.trap 0
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jr	r5
 	/* Should cause an trap error */
 	l.trap 0
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jalr	r5
@@ -361,8 +361,8 @@ _start:
 	/* DMMU miss test */
 
 	/* Check if we have a DMMU */
-	l.mfspr	r3,r0,SPR_UPR
-	l.andi  r3,r3,SPR_UPR_DMP
+	l.mfspr	r3,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi  r3,r3,OR1K_SPR_SYS_UPR_DMP_MASK
 	l.sfeq	r3,r0
 	/* Flag set if no DMMU */
 	l.bf    dmmu_test_done
@@ -370,15 +370,15 @@ _start:
 	
 	/* Just enabling the DMMU with no valid match match registers should
 	be enough to determine number of DMMU entries - hold this value in r3 */
-	l.mfspr	r3,r0,SPR_DMMUCFGR
-	l.andi	r4,r3,SPR_DMMUCFGR_NTS
-	l.srli	r4,r4,SPR_DMMUCFGR_NTS_OFF
+	l.mfspr	r3,r0,OR1K_SPR_SYS_DMMUCFGR_ADDR
+	l.andi	r4,r3,OR1K_SPR_SYS_DMMUCFGR_NTS_MASK
+	l.srli	r4,r4,OR1K_SPR_SYS_DMMUCFGR_NTS_LSB
 	l.ori	r6,r0,1
 	l.sll	r3,r6,r4
 	
 	/* Setup the Data MMU's TLBS - invalidate them */
-	l.movhi r4, hi(SPR_DTLBMR_BASE(0))
-	l.ori r4, r4, lo(SPR_DTLBMR_BASE(0))
+	l.movhi r4, hi(OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, 0))
+	l.ori r4, r4, lo(OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, 0))
 
 	/* DTLB invalidate loop */
 1:
@@ -402,42 +402,42 @@ _start:
 	/* This should cause a DLTB miss */
 	l.lwz	r1,0(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfeq	r0,r0
 	l.bf	test_func
 	/* This should cause a DLTB miss */
 	l.lwz	r1,0(r0)
 
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.sfne	r0,r0
 	l.bnf	test_func
 	/* This should cause a DLTB miss */
 	l.lwz	r1,0(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.j	test_func
 	/* This should cause a DLTB miss */
 	l.lwz	r1,0(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.jal	test_func
 	/* This should cause a DLTB miss */
 	l.lwz	r1,0(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jr	r5
 	/* This should cause a DLTB miss */
 	l.lwz	r1,0(r0)
 	
-	/* This test should_ set DSX, so put SPR_SR_DSX in r10 */
-	l.ori	r10,r0,SPR_SR_DSX
+	/* This test should_ set DSX, so put OR1K_SPR_SYS_SR_DSX_MASK in r10 */
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.movhi	r5,hi(test_func)
 	l.ori	r5,r5,lo(test_func)
 	l.jalr	r5
@@ -451,27 +451,27 @@ _start:
 	l.nop
 
 	/* Now disable DMMU */
-        l.mfspr r3,r0,SPR_SR
-        l.xori  r3,r3,SPR_SR_DME
-        l.mtspr r0,r3,SPR_ESR_BASE
+        l.mfspr r3,r0,OR1K_SPR_SYS_SR_ADDR
+        l.xori  r3,r3,OR1K_SPR_SYS_SR_DME_MASK
+        l.mtspr r0,r3,OR1K_SPR_SYS_ESR_BASE
 	l.movhi	r9,hi(dmmu_test_done)
 	l.ori	r9,r9,lo(dmmu_test_done)
-        l.mtspr r0,r9,SPR_EPCR_BASE
+        l.mtspr r0,r9,OR1K_SPR_SYS_EPCR_BASE
         l.rfe
 	
 dmmu_test_done:	
 
 	/* Check if we have an instruction cache */
-	l.mfspr	r3,r0,SPR_UPR
-	l.andi  r3,r3,SPR_UPR_ICP
+	l.mfspr	r3,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi  r3,r3,OR1K_SPR_SYS_UPR_ICP_MASK
 	l.sfeq	r3,r0
 	/* Flag set if no icache */
 	l.bf    test_ok
 	l.nop
 
 	/* Now repeat the tests with caches enabled if they weren't */
-	l.mfspr	r1,r0,SPR_SR
-	l.andi	r1,r1,SPR_SR_ICE
+	l.mfspr	r1,r0,OR1K_SPR_SYS_SR_ADDR
+	l.andi	r1,r1,OR1K_SPR_SYS_SR_ICE_MASK
 	l.sfeq	r0,r1  /* Set flag if caches not enabled */
 	l.bf	restart_with_caches_enabled
 	l.nop

@@ -46,9 +46,11 @@
 //////////////////////////////////////////////////////////////////////
 
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
-	
+
+#define ITLB_PR_NOLIMIT (OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK | OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK)
+
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
@@ -57,10 +59,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)
@@ -98,30 +100,30 @@
         .org 0xa00
 
 	/* First check if we're expecting a miss in a delay slot - check r10 */
-	l.mfspr	r3,r0,SPR_EEAR_BASE	/* Get EPC */ 				
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EEAR_BASE	/* Get EPC */ 				
 	l.nop	2                       /* Report PC for diagnostic purpose */ 	
 	/* Check SR[DSX] was as expected */ 					
-	l.mfspr	r8,r0,SPR_SR    	/* Get SR */ 				
-	l.andi	r8,r8,SPR_SR_DSX	/* Clear all bits except DSX */		
+	l.mfspr	r8,r0,OR1K_SPR_SYS_SR_ADDR    	/* Get SR */ 				
+	l.andi	r8,r8,OR1K_SPR_SYS_SR_DSX_MASK	/* Clear all bits except DSX */		
 	l.xor	r8,r8,r10		/* r8 will be >0 if error */ 		
 	l.sfne	r8,r0								
 	l.bf	test_fail 							
 	l.nop									
 	
 	/* Simple itlb miss handler - install 1-1 mappings on misses */
-	l.mfspr	r12,r0,SPR_EEAR_BASE /* Get the PC of the exception */
+	l.mfspr	r12,r0,OR1K_SPR_SYS_EEAR_BASE /* Get the PC of the exception */
 	l.srli	r13,r12,13 /* Get the page number, divide by 8K, store in r13 */
 	/* Set up the match registers */
-	l.movhi	r14,hi(SPR_ITLBMR_VPN)
-	l.ori	r14,r14,lo(SPR_ITLBMR_VPN)
+	l.movhi	r14,hi(OR1K_SPR_IMMU_ITLBW_MR_VPN_MASK)
+	l.ori	r14,r14,lo(OR1K_SPR_IMMU_ITLBW_MR_VPN_MASK)
 	l.and	r14,r12,r14 /* Mask in the VPN */
-	l.ori	r15,r14,SPR_ITLBMR_V /* Set this match as valid */
+	l.ori	r15,r14,OR1K_SPR_IMMU_ITLBW_MR_V_MASK /* Set this match as valid */
 	/* Write it into the appropriate match register, way 0 only */
-	l.mtspr	r13,r15,SPR_ITLBMR_BASE(0)
+	l.mtspr	r13,r15,OR1K_SPR_IMMU_ITLBW_MR_ADDR(0, 0)
 	/* Set up the translate register - no restrictions */
 	l.ori	r15,r14,ITLB_PR_NOLIMIT
 	/* Write it into the appropriate translate register  */
-	l.mtspr	r13,r15,SPR_ITLBTR_BASE(0)
+	l.mtspr	r13,r15,OR1K_SPR_IMMU_ITLBW_TR_ADDR(0, 0)
 	/* MMU setup should now be complete, let's go back */
 	l.rfe	
 	
@@ -139,15 +141,15 @@
 _start:
 	/* First initialise the instruction MMU */
 	
-	l.mfspr	r3,r0,SPR_IMMUCFGR
-	l.andi	r4,r3,SPR_IMMUCFGR_NTS
-	l.srli	r4,r4,SPR_IMMUCFGR_NTS_OFF
+	l.mfspr	r3,r0,OR1K_SPR_SYS_IMMUCFGR_ADDR
+	l.andi	r4,r3,OR1K_SPR_SYS_IMMUCFGR_NTS_MASK
+	l.srli	r4,r4,OR1K_SPR_SYS_IMMUCFGR_NTS_LSB
 	l.ori	r6,r0,1
 	l.sll	r3,r6,r4
 	
 	/* Setup the IMMU's TLBs - invalidate them */
-	l.movhi r4, hi(SPR_ITLBMR_BASE(0))
-	l.ori r4, r4, lo(SPR_ITLBMR_BASE(0))
+	l.movhi r4, hi(OR1K_SPR_IMMU_ITLBW_MR_ADDR(0, 0))
+	l.ori r4, r4, lo(OR1K_SPR_IMMU_ITLBW_MR_ADDR(0, 0))
 
 	/* ITLB invalidate loop */
 1:
@@ -214,16 +216,16 @@ _start:
 
 	/* Clear insn cache for this area (need to if it's enabled so we
 	don't get the cached instructions from the previous test) */
-	l.mtspr r0,r8,SPR_ICBIR
+	l.mtspr r0,r8,OR1K_SPR_ICACHE_ICBIR_ADDR
 	l.addi	r1,r8,-4
-	l.mtspr r0,r1,SPR_ICBIR
+	l.mtspr r0,r1,OR1K_SPR_ICACHE_ICBIR_ADDR
 
 	/* Jump to (r8-0x4) - we _should_ have DSX set on the itbl miss as
 	the jump instruction will be on the last instruction of the previous
 	page (already mapped in ITLB) and the delay slot will be the first
 	instruction on the next page, which is unmapped at this stage and
 	should cause an ITLB miss*/
-	l.ori	r10,r0,SPR_SR_DSX
+	l.ori	r10,r0,OR1K_SPR_SYS_SR_DSX_MASK
 	l.addi	r1,r8,-4
 
 	/* Report value */
@@ -238,8 +240,8 @@ _start:
 	have incurred */
 	
 	/* Now repeat the tests with caches enabled if they weren't */
-	l.mfspr	r1,r0,SPR_SR
-	l.andi	r1,r1,SPR_SR_ICE
+	l.mfspr	r1,r0,OR1K_SPR_SYS_SR_ADDR
+	l.andi	r1,r1,OR1K_SPR_SYS_SR_ICE_MASK
 	l.sfeq	r0,r1  /* Set flag if caches not enabled */
 	l.bf	restart_with_caches_enabled
 	l.nop
@@ -261,12 +263,12 @@ test_fail:
 restart_with_caches_enabled:
 	
 	/* Disable IMMU before restart*/
-        l.mfspr r3,r0,SPR_SR
-        l.xori  r3,r3,SPR_SR_IME
-        l.mtspr r0,r3,SPR_ESR_BASE
+        l.mfspr r3,r0,OR1K_SPR_SYS_SR_ADDR
+        l.xori  r3,r3,OR1K_SPR_SYS_SR_IME_MASK
+        l.mtspr r0,r3,OR1K_SPR_SYS_ESR_BASE
 	l.movhi	r9,hi(.L1)
 	l.ori	r9,r9,lo(.L1)
-        l.mtspr r0,r9,SPR_EPCR_BASE
+        l.mtspr r0,r9,OR1K_SPR_SYS_EPCR_BASE
         l.rfe
 .L1:	
 	l.jal 	_cache_init
@@ -275,9 +277,9 @@ restart_with_caches_enabled:
 	/* Actually we won't want dcache enabled as we'll be reading
 	and writing instructions around the shop so will not want them
 	being cached */
-        l.mfspr r3,r0,SPR_SR
-        l.xori  r3,r3,SPR_SR_DCE
-        l.mtspr r0,r3,SPR_SR
+        l.mfspr r3,r0,OR1K_SPR_SYS_SR_ADDR
+        l.xori  r3,r3,OR1K_SPR_SYS_SR_DCE_MASK
+        l.mtspr r0,r3,OR1K_SPR_SYS_SR_ADDR
 	
 	l.j     _start
 	l.nop

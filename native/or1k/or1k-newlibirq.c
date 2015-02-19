@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <spr-defs.h>
+#include <or1k-sprs.h>
 #include <or1k-support.h>
 //#include "board.h"
 #define INTGEN_BASE         0xe1000000
@@ -26,7 +26,7 @@ int main(void)
 	or1k_exception_handler_add(0x8, or1k_interrupt_handler);
 	or1k_interrupt_handler_add(INTGEN_IRQ, intgen_isr);
 	or1k_interrupt_enable(INTGEN_IRQ);
-	or1k_mtspr(SPR_SR, or1k_mfspr(SPR_SR) | SPR_SR_IEE);
+	or1k_mtspr(OR1K_SPR_SYS_SR_ADDR, or1k_mfspr(OR1K_SPR_SYS_SR_ADDR) | OR1K_SPR_SYS_SR_IEE_MASK);
 	/* Generate an interrupt */
 	write_intgen_reg(0, 1);
 

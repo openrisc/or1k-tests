@@ -37,7 +37,7 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 #include <or1k-asm.h>	
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
@@ -47,10 +47,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -62,10 +62,10 @@
 	// Tick handler
 	.org 0x500
 	/* Clear interrupt pending bit */
-	l.mfspr	r11,r0, SPR_TTMR
-	l.movhi	r12, hi(SPR_TTMR_IP)
+	l.mfspr	r11,r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.movhi	r12, hi(OR1K_SPR_TICK_TTMR_IP_MASK)
 	l.xor	r11, r11, r12
-	l.mtspr	r0, r11, SPR_TTMR
+	l.mtspr	r0, r11, OR1K_SPR_TICK_TTMR_ADDR
 	/* check which test we're doing */
 	l.sfltui r10, 3
 	OR1K_DELAYED(
@@ -73,7 +73,7 @@
 	OR1K_INST(l.addi	r2, r2, 1),
 	OR1K_INST(l.bf	timer_rfe))
 	/* only clear the ttmr for test 3 */
-	l.mtspr r0,r0,SPR_TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR
 timer_rfe:
 	l.rfe
 	
@@ -116,40 +116,40 @@ _main:
 	l.addi	r10, r10, 1
 
 	/* enable timer interrupts, clear timer mode reg */
-	l.mfspr	r3, r0, SPR_SR
-	l.ori 	r3, r3, SPR_SR_TEE
-	l.mtspr r0, r0, SPR_TTMR
-	l.mtspr	r0, r3, SPR_SR
+	l.mfspr	r3, r0, OR1K_SPR_SYS_SR_ADDR
+	l.ori 	r3, r3, OR1K_SPR_SYS_SR_TEE_MASK
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.mtspr	r0, r3, OR1K_SPR_SYS_SR_ADDR
 
 	/* Restart timer causing interrupt */
-	l.movhi r4,hi(SPR_TTMR_RT | SPR_TTMR_IE)
+	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	/* interrupt after 200 cycles */
 	l.ori	r6, r0, 200
 	
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
-	l.mtspr r0,r5,SPR_TTMR		# set TTMR
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
+	l.mtspr r0,r5,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
 
 	/* loop checking r2 which will be incremented on interrupt */
 restart_timer_interrupt_check:
 	l.sfeq	r2, r0
 	OR1K_DELAYED(
-	OR1K_INST(l.mfspr	r4, r0, SPR_TTCR),
+	OR1K_INST(l.mfspr	r4, r0, OR1K_SPR_TICK_TTCR_ADDR),
 	l.bf	restart_timer_interrupt_check
 	)
 
 	l.sfltu	r4, r6 /* timer should have reset and counting again */
 	OR1K_DELAYED(
-	OR1K_INST(l.mfspr	r5, r0, SPR_TTCR),
+	OR1K_INST(l.mfspr	r5, r0, OR1K_SPR_TICK_TTCR_ADDR),
 	OR1K_INST(l.bnf	test_fail)
 	)
 
 	l.sfleu	r5, r4 /* timer should still be going */
 	OR1K_DELAYED_NOP(l.bf 	test_fail)
 
-	l.mtspr r0,r0,SPR_TTMR /* clear ttmr, turn it off */
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR /* clear ttmr, turn it off */
 
 	/* Continuous run check */
 	l.addi	r10, r10, 1
@@ -160,38 +160,38 @@ restart_timer_interrupt_check:
 	/* First check auto-restart timer */
 
 	/* enable timer interrupts, clear timer mode reg */
-	l.mfspr	r3, r0, SPR_SR
-	l.ori 	r3, r3, SPR_SR_TEE
-	l.mtspr r0, r0, SPR_TTMR
-	l.mtspr	r0, r3, SPR_SR
+	l.mfspr	r3, r0, OR1K_SPR_SYS_SR_ADDR
+	l.ori 	r3, r3, OR1K_SPR_SYS_SR_TEE_MASK
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.mtspr	r0, r3, OR1K_SPR_SYS_SR_ADDR
 
 	/* Restart timer causing interrupt */
-	l.movhi r4,hi(SPR_TTMR_CR | SPR_TTMR_IE)
+	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_CONTINUE << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	/* interrupt after 200 cycles */
 	l.ori	r6, r0, 200
 	
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
-	l.mtspr r0,r5,SPR_TTMR		# set TTMR
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
+	l.mtspr r0,r5,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
 
 	/* loop checking r2 which will be incremented on interrupt */
 continuous_timer_interrupt_check:
 	l.sfeq	r2, r0
 	OR1K_DELAYED_NOP(l.bf	continuous_timer_interrupt_check)
 	
-	l.mfspr	r4, r0, SPR_TTCR
+	l.mfspr	r4, r0, OR1K_SPR_TICK_TTCR_ADDR
 
 	l.sfltu	r4, r6 /* timer should have continued again */
 	OR1K_DELAYED(
-	OR1K_INST(l.mfspr	r5, r0, SPR_TTCR),
+	OR1K_INST(l.mfspr	r5, r0, OR1K_SPR_TICK_TTCR_ADDR),
 	OR1K_INST(l.bf	test_fail)
 	)	
 	l.sfleu	r5, r4 /* timer should still be going */
 	OR1K_DELAYED_NOP(l.bf 	test_fail)
 
-	l.mtspr r0,r0,SPR_TTMR /* clear ttmr, turn it off */
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR /* clear ttmr, turn it off */
 
 	/* single shot, but also do some testing of timer interrupts and
 	system during lots of timer interrupts */
@@ -199,13 +199,13 @@ continuous_timer_interrupt_check:
 
 
 	/* enable timer interrupts, clear timer mode reg */
-	l.mfspr	r3, r0, SPR_SR
-	l.ori 	r3, r3, SPR_SR_TEE
-	l.mtspr r0, r0, SPR_TTMR
-	l.mtspr	r0, r3, SPR_SR
+	l.mfspr	r3, r0, OR1K_SPR_SYS_SR_ADDR
+	l.ori 	r3, r3, OR1K_SPR_SYS_SR_TEE_MASK
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
+	l.mtspr	r0, r3, OR1K_SPR_SYS_SR_ADDR
 
 	/* Single shot timer causing interrupt */
-	l.movhi r4,hi(SPR_TTMR_SR | SPR_TTMR_IE)
+	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_STOP << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	
 	/* r6 - timer ticks until interrupt */
 	l.ori	r6, r0, 10
@@ -234,9 +234,9 @@ one_shot_main_loop:
 	
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
-	l.mtspr r0,r5,SPR_TTMR		# set TTMR
-	l.mtspr r0,r0,SPR_TTCR 		# set TTCR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
+	l.mtspr r0,r5,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
 
 	/* increment the main loop tick interrupt counter */
 	l.addi	r1, r1, 1

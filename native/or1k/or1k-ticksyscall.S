@@ -1,5 +1,5 @@
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 	
 /*
@@ -65,10 +65,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)
@@ -90,7 +90,7 @@ _tick_handler:
 	l.addi r17, r17, 1
 # Set r7 to hold value of TTMR, one-shot mode/single run (SR)
 	l.addi r5, r0, TICK_COUNTER_VALUE /* Tick timer counter value */
-	l.movhi r6,hi(SPR_TTMR_SR | SPR_TTMR_IE)
+	l.movhi r6,hi((OR1K_SPR_TICK_TTMR_MODE_STOP << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	l.add  r7,r5,r6
 	/* Report values , 0x00000500 == tick timer report*/
 	l.ori r3, r0, 0x0500
@@ -98,8 +98,8 @@ _tick_handler:
 	l.or r3, r0, r17
 	l.nop 2
 # Init the tick timer
-	l.mtspr r0,r0,SPR_TTCR 		# clear TTCR
-	l.mtspr r0,r7,SPR_TTMR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# clear TTCR
+	l.mtspr r0,r7,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
 	l.rfe
 
 /* ========================================================= [ syscall ] === */	
@@ -108,14 +108,14 @@ _tick_handler:
 	.global _syscall_handler
 _syscall_handler:	
 	l.addi r15, r15, 1
-	l.mfspr r7, r0, SPR_ESR_BASE /* Put ESR in r7, set back to ESR later */
-	l.mfspr r8, r0, SPR_EPCR_BASE/* Put EPCR in r8,set back to EPCR later*/
+	l.mfspr r7, r0, OR1K_SPR_SYS_ESR_BASE /* Put ESR in r7, set back to ESR later */
+	l.mfspr r8, r0, OR1K_SPR_SYS_EPCR_BASE/* Put EPCR in r8,set back to EPCR later*/
 	/* Unset IEE and TEE bits of SR */
-	l.ori r4, r0, SPR_SR_IEE|SPR_SR_TEE
+	l.ori r4, r0, OR1K_SPR_SYS_SR_IEE_MASK|OR1K_SPR_SYS_SR_TEE_MASK
 	l.ori r5, r0, 0xffff
 	l.xor r5, r5, r4
 	l.and r5, r7, r5 /* New SR without interrupt bits set */
-	l.mtspr r0, r5, SPR_ESR_BASE /* SR after l.rfe */
+	l.mtspr r0, r5, OR1K_SPR_SYS_ESR_BASE /* SR after l.rfe */
 	/* Report values , 0x00000c00 == tick timer report*/
 	l.ori r3, r0, 0x0c00
 	l.nop 2
@@ -125,7 +125,7 @@ _syscall_handler:
 	l.nop 2
 	l.movhi r4, hi(_syscall_function)
 	l.ori r4, r4, lo(_syscall_function)
-	l.mtspr r0, r4, SPR_EPCR_BASE
+	l.mtspr r0, r4, OR1K_SPR_SYS_EPCR_BASE
 	l.rfe
 	
 
@@ -140,26 +140,26 @@ _start:
 
 	/* Instruction cache enable */
 	/* Check if IC present and skip enabling otherwise */
-	l.mfspr r24,r0,SPR_UPR
-	l.andi  r26,r24,SPR_UPR_ICP
+	l.mfspr r24,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi  r26,r24,OR1K_SPR_SYS_UPR_ICP_MASK
 	l.sfeq  r26,r0
 	l.bf    .L8
 	l.nop
 	
 	/* Disable IC */
-	l.mfspr r6,r0,SPR_SR
+	l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
 	l.addi  r5,r0,-1
-	l.xori  r5,r5,SPR_SR_ICE
+	l.xori  r5,r5,OR1K_SPR_SYS_SR_ICE_MASK
 	l.and   r5,r6,r5
-	l.mtspr r0,r5,SPR_SR
+	l.mtspr r0,r5,OR1K_SPR_SYS_SR_ADDR
 	
 	/* Establish cache block size
 	If BS=0, 16;
 	If BS=1, 32;
 	r14 contain block size
 	*/
-	l.mfspr r24,r0,SPR_ICCFGR
-	l.andi  r26,r24,SPR_ICCFGR_CBS
+	l.mfspr r24,r0,OR1K_SPR_SYS_ICCFGR_ADDR
+	l.andi  r26,r24,OR1K_SPR_SYS_ICCFGR_CBS_MASK
 	l.srli  r28,r26,7
 	l.ori   r30,r0,16
 	l.sll   r14,r30,r28
@@ -168,7 +168,7 @@ _start:
 	r16 contains number of cache sets
 	r28 contains log(# of cache sets)
 	*/
-	l.andi  r26,r24,SPR_ICCFGR_NCS
+	l.andi  r26,r24,OR1K_SPR_SYS_ICCFGR_NCS_MASK
 	l.srli  r28,r26,3
 	l.ori   r30,r0,1
 	l.sll   r16,r30,r28
@@ -178,15 +178,15 @@ _start:
 	l.sll   r5,r14,r28
 	
 .L7:
-	l.mtspr r0,r6,SPR_ICBIR
+	l.mtspr r0,r6,OR1K_SPR_ICACHE_ICBIR_ADDR
 	l.sfne  r6,r5
 	l.bf    .L7
 	l.add   r6,r6,r14
 	
 	/* Enable IC */
-	l.mfspr r6,r0,SPR_SR
-	l.ori   r6,r6,SPR_SR_ICE
-	l.mtspr r0,r6,SPR_SR
+	l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
+	l.ori   r6,r6,OR1K_SPR_SYS_SR_ICE_MASK
+	l.mtspr r0,r6,OR1K_SPR_SYS_SR_ADDR
 	l.nop
 	l.nop
 	l.nop
@@ -199,24 +199,24 @@ _start:
 .L8:
 	/* Data cache enable */
         /* Check if DC present and skip enabling otherwise */
-        l.mfspr r24,r0,SPR_UPR
-        l.andi  r26,r24,SPR_UPR_DCP
+        l.mfspr r24,r0,OR1K_SPR_SYS_UPR_ADDR
+        l.andi  r26,r24,OR1K_SPR_SYS_UPR_DCP_MASK
         l.sfeq  r26,r0
         l.bf    .L10
         l.nop
         /* Disable DC */
-        l.mfspr r6,r0,SPR_SR
+        l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
         l.addi  r5,r0,-1
-        l.xori  r5,r5,SPR_SR_DCE
+        l.xori  r5,r5,OR1K_SPR_SYS_SR_DCE_MASK
 	l.and   r5,r6,r5
-        l.mtspr r0,r5,SPR_SR
+        l.mtspr r0,r5,OR1K_SPR_SYS_SR_ADDR
         /* Establish cache block size
            If BS=0, 16;
            If BS=1, 32;
            r14 contain block size
         */
-        l.mfspr r24,r0,SPR_DCCFGR
-        l.andi  r26,r24,SPR_DCCFGR_CBS
+        l.mfspr r24,r0,OR1K_SPR_SYS_DCCFGR_ADDR
+        l.andi  r26,r24,OR1K_SPR_SYS_DCCFGR_CBS_MASK
         l.srli  r28,r26,7
         l.ori   r30,r0,16
         l.sll   r14,r30,r28
@@ -224,7 +224,7 @@ _start:
            r16 contains number of cache sets
            r28 contains log(# of cache sets)
         */
-	l.andi  r26,r24,SPR_DCCFGR_NCS
+	l.andi  r26,r24,OR1K_SPR_SYS_DCCFGR_NCS_MASK
 	l.srli  r28,r26,3
         l.ori   r30,r0,1
         l.sll   r16,r30,r28
@@ -232,14 +232,14 @@ _start:
         l.addi  r6,r0,0
         l.sll   r5,r14,r28
 .L9:
-        l.mtspr r0,r6,SPR_DCBIR
+        l.mtspr r0,r6,OR1K_SPR_DCACHE_DCBIR_ADDR
         l.sfne  r6,r5
         l.bf    .L9
 	l.add   r6,r6,r14
         /* Enable DC */
-        l.mfspr r6,r0,SPR_SR
-        l.ori   r6,r6,SPR_SR_DCE
-        l.mtspr r0,r6,SPR_SR
+        l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
+        l.ori   r6,r6,OR1K_SPR_SYS_SR_DCE_MASK
+        l.mtspr r0,r6,OR1K_SPR_SYS_SR_ADDR
 .L10:
 
 	// Kick off test
@@ -258,23 +258,23 @@ _main:
 	#
 	l.movhi r5,0xffff
 	l.ori   r5,r5,0xffff
-	l.mtspr r0,r5,SPR_PICMR		# set PICMR
+	l.mtspr r0,r5,OR1K_SPR_PIC_PICMR_ADDR		# set PICMR
 	
 	# Set r20 to hold enable exceptions and interrupts
-	l.mfspr	r20,r0,SPR_SR
-	l.ori r20,r20,SPR_SR_SM|SPR_SR_TEE
+	l.mfspr	r20,r0,OR1K_SPR_SYS_SR_ADDR
+	l.ori r20,r20,OR1K_SPR_SYS_SR_SM_MASK|OR1K_SPR_SYS_SR_TEE_MASK
 	
 	# Enable exceptions and interrupts
-	l.mtspr r0,r20,SPR_SR	# set SR
+	l.mtspr r0,r20,OR1K_SPR_SYS_SR_ADDR	# set SR
 	
 	# Set r7 to hold value of TTMR, one-shot mode/single run (SR)
 	l.addi r5, r0, TICK_COUNTER_VALUE /* Tick timer counter value */
-	l.movhi r6,hi(SPR_TTMR_SR | SPR_TTMR_IE)
+	l.movhi r6,hi((OR1K_SPR_TICK_TTMR_MODE_STOP << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	l.add  r7,r5,r6
 	
 	# Init the tick timer
-	l.mtspr r0,r0,SPR_TTCR 		# clear TTCR
-	l.mtspr r0,r7,SPR_TTMR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# clear TTCR
+	l.mtspr r0,r7,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
 	
 _wait_loop:
 	l.sfeqi r17, 0x10
@@ -335,7 +335,7 @@ _wait_loop:
 	l.sys 0xf
 	l.nop
 	/* Now turn off tick timer */
-	l.mtspr r0,r0,SPR_TTMR		# clear TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR		# clear TTMR
 	l.sfnei r16, 0x78 /* Should equal 120, 0x78 */
 	l.bf _fail
 	l.nop	
@@ -354,8 +354,8 @@ _fail:
 _syscall_function:
 	/* r7 and r8 hold actual real ESR and EPCR, respectively */
 	/* We'll restore them now */
-	l.mtspr r0, r7, SPR_ESR_BASE /* SR before syscall */
-	l.mtspr r0, r8, SPR_EPCR_BASE
+	l.mtspr r0, r7, OR1K_SPR_SYS_ESR_BASE /* SR before syscall */
+	l.mtspr r0, r8, OR1K_SPR_SYS_EPCR_BASE
 	l.add r16, r16, r3 /* Add syscall number to our counter */
 	l.movhi r4, hi(0x0100000) /* 1MB mark of memory */
 	/* Ensure memory access OK */

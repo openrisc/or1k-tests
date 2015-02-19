@@ -1,5 +1,5 @@
 #include <or1k-asm.h>
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 
 #define NUM_TICKS_FOR_TEST 1024
@@ -66,10 +66,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori 	r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 	/* Init the stack */
 	.global stack
 	l.movhi r1, hi(stack)
@@ -91,7 +91,7 @@ _tick_handler:
 	l.addi 	r13, r13, 1
 # Set r7 to hold value of TTMR, one-shot mode/single run (SR)
 	l.addi 	r8, r0, TICK_COUNTER_VALUE /* Tick timer counter value */
-	l.movhi r6,hi(SPR_TTMR_SR | SPR_TTMR_IE)
+	l.movhi r6,hi((OR1K_SPR_TICK_TTMR_MODE_STOP << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	l.add  	r7,r8,r6
 	/* Report values , 0x00000500 == tick timer report*/
 	l.ori 	r3, r0, 0x0500
@@ -99,18 +99,18 @@ _tick_handler:
 	l.or 	r3, r0, r13
 	l.nop 	2
 # Init the tick timer
-	l.mtspr r0,r0,SPR_TTCR 		# clear TTCR
-	l.mtspr r0,r7,SPR_TTMR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# clear TTCR
+	l.mtspr r0,r7,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
 	l.rfe
 	
 /* =================================================== [ User interrupt ] === */
 	.org 0x800
 	.global _user_irq_handler
 _user_irq_handler:
-	l.mfspr	r3,r0,SPR_EPCR_BASE	/* Get PC of bad instruction */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get PC of bad instruction */
 	l.nop 	0x2
 	l.addi	r3,r3,4 	        /* Step over instruction */
-	l.mtspr	r0,r3,SPR_EPCR_BASE
+	l.mtspr	r0,r3,OR1K_SPR_SYS_EPCR_BASE
 
 	l.addi r10, r10, 1
 	/* Report values , 0x00000800 == user interrupt report*/
@@ -123,8 +123,8 @@ _user_irq_handler:
 	l.ori	r7, r12, 0x1 	/* intgen IRQ clear address */
 	l.sb	0(r7), r0 	/* Any write clears the bit */
 	/* Clear PICSR */
-	l.mfspr r7, r0, SPR_PICSR
-	l.mtspr r0, r7, SPR_PICSR
+	l.mfspr r7, r0, OR1K_SPR_PIC_PICSR_ADDR
+	l.mtspr r0, r7, OR1K_SPR_PIC_PICSR_ADDR
 
 	l.rfe
 
@@ -148,25 +148,25 @@ _main:
 	#
 	l.movhi r5,0xffff
 	l.ori   r5,r5,0xffff
-	l.mtspr r0,r5,SPR_PICMR		# set PICMR
+	l.mtspr r0,r5,OR1K_SPR_PIC_PICMR_ADDR		# set PICMR
 
 	// Use r7 to hold value of TTMR, one-shot mode/single run (SR)
 	l.addi r5, r0, TICK_COUNTER_VALUE /* Tick timer counter value */
-	l.movhi r6,hi(SPR_TTMR_SR | SPR_TTMR_IE)
+	l.movhi r6,hi((OR1K_SPR_TICK_TTMR_MODE_STOP << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	l.add  r7,r5,r6
 
 	# Init the tick timer
-	l.mtspr r0,r0,SPR_TTCR 		# clear TTCR
-	l.mtspr r0,r7,SPR_TTMR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# clear TTCR
+	l.mtspr r0,r7,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
 	
 	/* Enable Interrupts */
-        l.mfspr r6,r0,SPR_SR
-        l.ori   r6,r6,(SPR_SR_IEE | SPR_SR_TEE)
-        l.mtspr r0,r6,SPR_SR
+        l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
+        l.ori   r6,r6,(OR1K_SPR_SYS_SR_IEE_MASK | OR1K_SPR_SYS_SR_TEE_MASK)
+        l.mtspr r0,r6,OR1K_SPR_SYS_SR_ADDR
 
 	# Init the tick timer
-	l.mtspr r0,r0,SPR_TTCR 		# clear TTCR
-	l.mtspr r0,r7,SPR_TTMR		# set TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# clear TTCR
+	l.mtspr r0,r7,OR1K_SPR_TICK_TTMR_ADDR		# set TTMR
 
 	
 	l.movhi r15, 0
@@ -229,7 +229,7 @@ update_irq_delay:
 
 finished:
 	// Disable tick timer
-	l.mtspr r0,r0,SPR_TTMR
+	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR
 	
 	// Make sure that for every interrupt we asked to generate, that
 	// we actually serviced it.

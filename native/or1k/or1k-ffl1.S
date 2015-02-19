@@ -34,7 +34,7 @@
 //////////////////////////////////////////////////////////////////////
 	
 #include <or1k-asm.h>	
-#include "spr-defs.h"
+#include <or1k-sprs.h>
 #include "board.h"
 	
 /* =================================================== [ exceptions ] === */
@@ -45,10 +45,10 @@
         .org 0x100 	
 	l.movhi r0, 0
 	/* Clear status register */
-	l.ori r1, r0, SPR_SR_SM
-	l.mtspr r0, r1, SPR_SR
+	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
+	l.mtspr r0, r1, OR1K_SPR_SYS_SR_ADDR
 	/* Clear timer  */
-	l.mtspr r0, r0, SPR_TTMR
+	l.mtspr r0, r0, OR1K_SPR_TICK_TTMR_ADDR
 
 	/* Jump to program initialisation code */
 	.global _start
@@ -72,25 +72,25 @@ _start:
 
 	/* Instruction cache enable */
 	/* Check if IC present and skip enabling otherwise */
-	l.mfspr r24,r0,SPR_UPR
-	l.andi  r26,r24,SPR_UPR_ICP
+	l.mfspr r24,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi  r26,r24,OR1K_SPR_SYS_UPR_ICP_MASK
 	l.sfeq  r26,r0
 	OR1K_DELAYED_NOP(l.bf    .L8)
 	
 	/* Disable IC */
-	l.mfspr r6,r0,SPR_SR
+	l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
 	l.addi  r5,r0,-1
-	l.xori  r5,r5,SPR_SR_ICE
+	l.xori  r5,r5,OR1K_SPR_SYS_SR_ICE_MASK
 	l.and   r5,r6,r5
-	l.mtspr r0,r5,SPR_SR
+	l.mtspr r0,r5,OR1K_SPR_SYS_SR_ADDR
 	
 	/* Establish cache block size
 	If BS=0, 16;
 	If BS=1, 32;
 	r14 contain block size
 	*/
-	l.mfspr r24,r0,SPR_ICCFGR
-	l.andi  r26,r24,SPR_ICCFGR_CBS
+	l.mfspr r24,r0,OR1K_SPR_SYS_ICCFGR_ADDR
+	l.andi  r26,r24,OR1K_SPR_SYS_ICCFGR_CBS_MASK
 	l.srli  r28,r26,7
 	l.ori   r30,r0,16
 	l.sll   r14,r30,r28
@@ -99,7 +99,7 @@ _start:
 	r16 contains number of cache sets
 	r28 contains log(# of cache sets)
 	*/
-	l.andi  r26,r24,SPR_ICCFGR_NCS
+	l.andi  r26,r24,OR1K_SPR_SYS_ICCFGR_NCS_MASK
 	l.srli  r28,r26,3
 	l.ori   r30,r0,1
 	l.sll   r16,r30,r28
@@ -109,7 +109,7 @@ _start:
 	l.sll   r5,r14,r28
 	
 .L7:
-	l.mtspr r0,r6,SPR_ICBIR
+	l.mtspr r0,r6,OR1K_SPR_ICACHE_ICBIR_ADDR
 	l.sfne  r6,r5
 	OR1K_DELAYED(
 	OR1K_INST(l.add   r6,r6,r14),
@@ -117,9 +117,9 @@ _start:
 	)
 	
 	/* Enable IC */
-	l.mfspr r6,r0,SPR_SR
-	l.ori   r6,r6,SPR_SR_ICE
-	l.mtspr r0,r6,SPR_SR
+	l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
+	l.ori   r6,r6,OR1K_SPR_SYS_SR_ICE_MASK
+	l.mtspr r0,r6,OR1K_SPR_SYS_SR_ADDR
 	l.nop
 	l.nop
 	l.nop
@@ -132,23 +132,23 @@ _start:
 .L8:
 	/* Data cache enable */
         /* Check if DC present and skip enabling otherwise */
-        l.mfspr r24,r0,SPR_UPR
-        l.andi  r26,r24,SPR_UPR_DCP
+        l.mfspr r24,r0,OR1K_SPR_SYS_UPR_ADDR
+        l.andi  r26,r24,OR1K_SPR_SYS_UPR_DCP_MASK
         l.sfeq  r26,r0
         OR1K_DELAYED_NOP(l.bf    .L10)
         /* Disable DC */
-        l.mfspr r6,r0,SPR_SR
+        l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
         l.addi  r5,r0,-1
-        l.xori  r5,r5,SPR_SR_DCE
+        l.xori  r5,r5,OR1K_SPR_SYS_SR_DCE_MASK
 	l.and   r5,r6,r5
-        l.mtspr r0,r5,SPR_SR
+        l.mtspr r0,r5,OR1K_SPR_SYS_SR_ADDR
         /* Establish cache block size
            If BS=0, 16;
            If BS=1, 32;
            r14 contain block size
         */
-        l.mfspr r24,r0,SPR_DCCFGR
-        l.andi  r26,r24,SPR_DCCFGR_CBS
+        l.mfspr r24,r0,OR1K_SPR_SYS_DCCFGR_ADDR
+        l.andi  r26,r24,OR1K_SPR_SYS_DCCFGR_CBS_MASK
         l.srli  r28,r26,7
         l.ori   r30,r0,16
         l.sll   r14,r30,r28
@@ -156,7 +156,7 @@ _start:
            r16 contains number of cache sets
            r28 contains log(# of cache sets)
         */
-	l.andi  r26,r24,SPR_DCCFGR_NCS
+	l.andi  r26,r24,OR1K_SPR_SYS_DCCFGR_NCS_MASK
 	l.srli  r28,r26,3
         l.ori   r30,r0,1
         l.sll   r16,r30,r28
@@ -164,16 +164,16 @@ _start:
         l.addi  r6,r0,0
         l.sll   r5,r14,r28
 .L9:
-        l.mtspr r0,r6,SPR_DCBIR
+        l.mtspr r0,r6,OR1K_SPR_DCACHE_DCBIR_ADDR
         l.sfne  r6,r5
 	OR1K_DELAYED(
 	OR1K_INST(l.add   r6,r6,r14),
         OR1K_INST(l.bf    .L9)
 	)
         /* Enable DC */
-        l.mfspr r6,r0,SPR_SR
-        l.ori   r6,r6,SPR_SR_DCE
-        l.mtspr r0,r6,SPR_SR
+        l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
+        l.ori   r6,r6,OR1K_SPR_SYS_SR_DCE_MASK
+        l.mtspr r0,r6,OR1K_SPR_SYS_SR_ADDR
 .L10:
 	// Kick off test
 	OR1K_DELAYED_NOP(l.jal   _main)
