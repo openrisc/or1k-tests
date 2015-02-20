@@ -28,6 +28,7 @@ or1k/or1k-lsu.S
 or1k/or1k-lwjr.S
 or1k/or1k-mmu.c
 or1k/or1k-mul.c
+or1k/or1k-mul-basic.S
 or1k/or1k-newlibirq.c
 or1k/or1k-ovcy.c
 or1k/or1k-ov.S
