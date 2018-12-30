@@ -4,7 +4,7 @@
 	Very basic, testing
 
 	Julius Baxter, ORSoC AB, julius.baxter@orsoc.se
-	
+
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -32,19 +32,17 @@
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
-	
-#include <or1k-asm.h>	
+
+#include <or1k-asm.h>
 #include <or1k-sprs.h>
 #include "board.h"
 
-
-	
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
 
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+        .org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -59,15 +57,14 @@
 	l.jr    r4
 	l.nop
 
-	.org 0x600 	
+	.org 0x600
+	l.ori 	r3, r0, 0x600
 	l.nop 0x1
 
-	
 /* ---[ 0x700: Illegal instruction exception ]-------------------------- */
         .org 0x700
-	l.ori 	r3, r0, 1
+	l.ori 	r3, r0, 0x700
 	l.nop 	0x1
-
 
 /* =================================================== [ text ] === */
 	.section .text
@@ -75,16 +72,14 @@
 /* =================================================== [ start ] === */	
 
 	.global _start
-_start:	
+_start:
 	// Kick off test
 	l.jal   _main
 	l.nop
-	
-
 
 /* =================================================== [ main ] === */
-	
-	.global _main	
+
+	.global _main
 _main:
 	// l.exth tests first
 	l.ori 	r4,r0,0xffff
@@ -98,17 +93,17 @@ _main:
 	l.nop 	0x2
 	l.sfne	r8,r3
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	l.ori	r8,r0,0xffff
 
 	l.exthz	r3,r4
 
 	l.nop 	0x2
-	
+
 	l.sfne	r8,r3
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	l.exths	r3,r5
 
@@ -124,13 +119,13 @@ _main:
 
 	l.sfne	r3,r5
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	// l.extb tests
-	
+
 	l.ori 	r4,r0,0x00ff
 	l.ori 	r5,r0,0x007f
-	
+
 	l.extbs	r3,r4
 
 	l.nop 	0x2
@@ -140,17 +135,17 @@ _main:
 
 	l.sfne	r8,r3
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	l.ori	r8,r0,0x00ff
 
 	l.extbz	r3,r4
 
 	l.nop 	0x2
-	
+
 	l.sfne	r8,r3
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	l.extbs	r3,r5
 
@@ -158,7 +153,7 @@ _main:
 
 	l.sfne	r3,r5
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	l.extbz	r3,r5
 
@@ -166,7 +161,7 @@ _main:
 
 	l.sfne	r3,r5
 	l.bf	fail
-	l.nop
+	 l.nop
 
 	// l.extw tests - shouldn't change anything
 	l.movhi	r4,0xffff
@@ -175,7 +170,7 @@ _main:
 	l.extws	r3,r4
 
 	l.nop 	0x2
-	
+
 	l.sfne	r3,r4
 	l.bf	fail
 	l.nop
@@ -183,16 +178,16 @@ _main:
 	l.extwz	r3,r4
 
 	l.nop 	0x2
-	
+
 	l.sfne	r3,r4
 	l.bf	fail
-	l.nop
+	 l.nop
 
-	
+success:
 	l.movhi r3, hi(0x8000000d)
 	l.ori 	r3, r3, lo(0x8000000d)
 	l.nop 	0x2
-	l.ori 	r3, r0, 0	
+	l.ori 	r3, r0, 0
 	l.nop 	0x1
 
 fail:

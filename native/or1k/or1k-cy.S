@@ -15,7 +15,7 @@
 TODO:	 Substraction carry out testing.
 
 	Julius Baxter, ORSoC AB, julius.baxter@orsoc.se
-	
+
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -43,18 +43,18 @@ TODO:	 Substraction carry out testing.
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
-	
-	
+
+
 #include <or1k-asm.h>
 #include <or1k-sprs.h>
 #include "board.h"
-		
+
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
 
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+        .org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -69,14 +69,16 @@ TODO:	 Substraction carry out testing.
 	l.jr    r4
 	l.nop
 
-	.org 0x600 	
+	.org 0x600
+	// Load store alignment exception
+	l.ori 	r3, r0, 0x600
 	l.nop 0x1
 
-	
+
 /* ---[ 0x700: Illegal instruction exception ]-------------------------- */
         .org 0x700
 	// Instruction not supported
-	l.ori 	r3, r0, 1
+	l.ori 	r3, r0, 0x700
 	l.nop 	0x1
 
 /* ---[ 0xb00: Range exception ]---------------------------------------- */
@@ -101,7 +103,7 @@ _start:
 	l.movhi	r4, 0
 	l.movhi	r5, 0
 	l.movhi	r6, 0
-	
+
 	// Kick off test
 	l.jal   _main
 	l.nop
@@ -115,16 +117,16 @@ _start:
 	l.andi	r6, r6, OR1K_SPR_SYS_SR_CY_MASK ;	\
 	l.sfne	r6, r0		  ;	\
 	l.bf	_fail		  ;	\
-	l.nop				
+	 l.nop
 
 #define CHECK_CY_SET			\
 	l.mfspr	r6, r0, OR1K_SPR_SYS_SR_ADDR	;	\
 	l.andi	r6, r6, OR1K_SPR_SYS_SR_CY_MASK ;	\
 	l.sfnei	r6, OR1K_SPR_SYS_SR_CY_MASK	  ;	\
 	l.bf	_fail		  ;	\
-	l.nop				
-	
-	.global _main	
+	 l.nop
+
+	.global _main
 _main:
 
 	// Set up some values, check the CY bit is cleared from reset
@@ -143,7 +145,7 @@ _main:
 
 	l.add	r3, r0, r0	;// Should clear CY
 	CHECK_CY_CLEAR
-	
+
 	l.addi	r3, r4, 0x1001	;// Should set CY
 	l.nop 	0x2
 	CHECK_CY_SET
@@ -163,7 +165,7 @@ _main:
 
 	l.sfnei	r3, 0x1002
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	l.add	r3, r4, r5	;// Should set CY
 	l.nop			;// 1 delay instruction
@@ -172,7 +174,7 @@ _main:
 
 	l.sfnei	r3, 0x1002
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	l.add	r3, r4, r5	;// Should set
 	l.nop	0x2		;// 1 delay instruction
@@ -182,11 +184,11 @@ _main:
 
 	l.sfnei	r3, 0x1002
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	l.add	r3, r0, r0	;// Should clear CY
-	CHECK_CY_CLEAR	
-	
+	CHECK_CY_CLEAR
+
 	// Check use of carry - l.addic
 	l.addi	r3, r4, 0x1001	;// Should set CY
 	;; // Consequtive instructions
@@ -195,7 +197,7 @@ _main:
 
 	l.sfnei	r3, 0x2
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	l.add	r3, r0, r0	;// Should clear CY
 	CHECK_CY_CLEAR
@@ -207,7 +209,7 @@ _main:
 
 	l.sfnei	r3, 0x2
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	l.add	r3, r0, r0	;// Should clear CY
 	CHECK_CY_CLEAR
@@ -220,10 +222,10 @@ _main:
 
 	l.sfnei	r3, 0x2
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	l.add	r3, r0, r0	;// Should clear CY
-	CHECK_CY_CLEAR	
+	CHECK_CY_CLEAR
 
 	// Add with carry and generate carry with l.addc
 
@@ -233,22 +235,22 @@ _main:
 
 	l.sfnei	r3, 0x1
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	CHECK_CY_SET
 
 	l.add	r3, r0, r0	;// Should clear CY
-	CHECK_CY_CLEAR		
+	CHECK_CY_CLEAR
 
 	// Add with carry and generate carry with l.addic
-	
+
 	l.addi	r3, r4, 0x1001
 	l.addic	r3, r4, 0x1001
 	l.nop	0x2
 
 	l.sfnei	r3, 0x1
 	l.bf	_fail
-	l.nop
+	 l.nop
 
 	CHECK_CY_SET
 
@@ -266,7 +268,7 @@ _main:
 
 	// WARNING - this will not work for the 3-stage multiplier
 	// in the mor1kx, as it will not detect unsigned overflow.
-	
+
 	// Now multiply 0x80000000 by 2 - should just overflow (for 32-bit)
 	l.mulu	r3, r5, r8
 	l.nop 	0x2
@@ -276,11 +278,11 @@ _main:
 	l.nop	0x2
 	CHECK_CY_CLEAR
 
-_finish:	
+_finish:
 	l.movhi r3, hi(0x8000000d)
 	l.ori 	r3, r3, lo(0x8000000d)
 	l.nop 	0x2
-	l.ori 	r3, r0, 0	
+	l.ori 	r3, r0, 0
 	l.nop 	0x1
 
 _fail:

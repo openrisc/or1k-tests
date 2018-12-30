@@ -2,21 +2,21 @@
 	Exception test.
 
 	The following list outlines the tests performed
-	
+
 	Execption tests for:
-	- 0x100 reset                        - start addr after reset 
+	- 0x100 reset                        - start addr after reset
 	- 0x200 bus error                    - unimplemented addr is accessed
 	- 0x600 alignment                    - write to unaligned addr
-	- 0x700 illegal instruction          - use unimplemented inst. l.div 
-	
-	r11 - 1st exception counter incremented inside exception 
+	- 0x700 illegal instruction          - use unimplemented inst. l.div
+
+	r11 - 1st exception counter incremented inside exception
 	r12 - 2nd exception counter incremented outside and rigth after
 	      exception
 	... other register use to be documented...
 
 	Julius Baxter, julius@opencores.org
 	Tadej Markovic, tadej@opencores.org
-	
+
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -48,13 +48,13 @@
 #include <or1k-asm.h>
 #include <or1k-sprs.h>
 #include "board.h"
-	
+
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
 
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+	.org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -72,13 +72,13 @@
 	l.movhi r4, hi(_start)
 	l.ori 	r4, r4, lo(_start)
 	l.jr    r4
-	l.nop
+	 l.nop
 
-  
+
 /* ---[ 0x200: BUS error ]------------------------------------------------ */
 	.org 0x200
 	.global	_bus_handler
-	
+
 _bus_handler:
 	l.ori	r7,r0,1		/* set "exception flag" */
 	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get EPC */
@@ -104,7 +104,7 @@ _bus_handler:
 /* ---[ 0x600: ALIGN error ]------------------------------------------------ */
 	.org 0x600
 	.global	_align_handler
-_align_handler:	
+_align_handler:
 	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get EPC */
 	l.nop	2
 	l.addi	r11,r11,1		/* Increment 1st exception counter */
@@ -139,18 +139,18 @@ _illinsn_handler:
 /* =================================================== [ start ] === */	
 
 	.global _start
-_start:	
+_start:
 	l.jal 	_cache_init
-	l.nop
+	 l.nop
 	// Kick off test
 	l.jal   _main
-	l.nop
+	 l.nop
 
 /* ========================================================= [ main ] === */
 
 	.global	_main
-_main:		
-	l.nop	
+_main:
+	l.nop
         l.addi	r3,r0,0
         l.addi	r5,r0,0
         l.addi	r11,r0,0 /* exception counter 1 */
@@ -158,26 +158,26 @@ _main:
         l.addi	r13,r0,0
 	l.addi	r14,r0,0 /* DMMU exception counter for low mem mapping */
 	l.addi	r15,r0,0 /* DMMU exception counter for hi mem mapping */
-	l.sw	0x0(r0),r0	/* Initialize RAM */	
-	l.sw	0x4(r0),r0	/* Initialize RAM */	
-	l.sw	0x8(r0),r0	/* Initialize RAM */	
-	l.sw	0xc(r0),r0	/* Initialize RAM */	
-	l.sw	0x10(r0),r0	/* Initialize RAM */	
-	l.sw	0x14(r0),r0	/* Initialize RAM */	
-	l.sw	0x18(r0),r0	/* Initialize RAM */	
-	l.sw	0x1c(r0),r0	/* Initialize RAM */	
-	l.sw	0x20(r0),r0	/* Initialize RAM */	
-	l.sw	0x24(r0),r0	/* Initialize RAM */	
-	l.sw	0x28(r0),r0	/* Initialize RAM */	
-	l.sw	0x2c(r0),r0	/* Initialize RAM */	
-	l.sw	0x30(r0),r0	/* Initialize RAM */	
-	l.sw	0x34(r0),r0	/* Initialize RAM */	
-	l.sw	0x38(r0),r0	/* Initialize RAM */	
-	l.sw	0x3c(r0),r0	/* Initialize RAM */	
-	l.sw	0x40(r0),r0	/* Initialize RAM */	
-	l.sw	0x44(r0),r0	/* Initialize RAM */	
-	l.sw	0x48(r0),r0	/* Initialize RAM */	
-	l.sw	0x4c(r0),r0	/* Initialize RAM */	
+	l.sw	0x0(r0),r0	/* Initialize RAM */
+	l.sw	0x4(r0),r0	/* Initialize RAM */
+	l.sw	0x8(r0),r0	/* Initialize RAM */
+	l.sw	0xc(r0),r0	/* Initialize RAM */
+	l.sw	0x10(r0),r0	/* Initialize RAM */
+	l.sw	0x14(r0),r0	/* Initialize RAM */
+	l.sw	0x18(r0),r0	/* Initialize RAM */
+	l.sw	0x1c(r0),r0	/* Initialize RAM */
+	l.sw	0x20(r0),r0	/* Initialize RAM */
+	l.sw	0x24(r0),r0	/* Initialize RAM */
+	l.sw	0x28(r0),r0	/* Initialize RAM */
+	l.sw	0x2c(r0),r0	/* Initialize RAM */
+	l.sw	0x30(r0),r0	/* Initialize RAM */
+	l.sw	0x34(r0),r0	/* Initialize RAM */
+	l.sw	0x38(r0),r0	/* Initialize RAM */
+	l.sw	0x3c(r0),r0	/* Initialize RAM */
+	l.sw	0x40(r0),r0	/* Initialize RAM */
+	l.sw	0x44(r0),r0	/* Initialize RAM */
+	l.sw	0x48(r0),r0	/* Initialize RAM */
+	l.sw	0x4c(r0),r0	/* Initialize RAM */
 	l.j	_align1
 	l.nop
 
@@ -185,7 +185,7 @@ _main:
         /* Exceptions followed by NOPs */
 
 	/* SW alignment exception */
-_align1:	
+_align1:
 	l.movhi r11,0
 	l.nop
 	/* Test l.sh */
@@ -207,89 +207,89 @@ _align1:
 	l.lhs 	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	l.ori	r5,r0,0x3 /* Half-word access, offset 3 */
-	l.lhs	r3,0x0(r5)	
+	l.lhs	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	/* Test l.sw */
-	l.ori	r5,r0,0x1 /* Word access, offset 1 */	
+	l.ori	r5,r0,0x1 /* Word access, offset 1 */
 	l.sw	0x0(r5), r0
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori	r5,r0,0x2 /* Word access, offset 2 */	
+	l.ori	r5,r0,0x2 /* Word access, offset 2 */
 	l.sw	0x0(r5), r0
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori	r5,r0,0x3 /* Word access, offset 3 */	
+	l.ori	r5,r0,0x3 /* Word access, offset 3 */
 	l.sw	0x0(r5), r0
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	/* Test l.lwz */
-	l.ori	r5,r0,0x1 /* Word access, offset 1 */	
+	l.ori	r5,r0,0x1 /* Word access, offset 1 */
 	l.lwz	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori	r5,r0,0x2 /* Word access, offset 2 */	
+	l.ori	r5,r0,0x2 /* Word access, offset 2 */
 	l.lwz	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori	r5,r0,0x3 /* Word access, offset 3 */	
+	l.ori	r5,r0,0x3 /* Word access, offset 3 */
 	l.lwz	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	/* Test l.lws */
-	l.ori	r5,r0,0x1 /* Word access, offset 1 */	
+	l.ori	r5,r0,0x1 /* Word access, offset 1 */
 	l.lws	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori	r5,r0,0x2 /* Word access, offset 2 */	
+	l.ori	r5,r0,0x2 /* Word access, offset 2 */
 	l.lws	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori	r5,r0,0x3 /* Word access, offset 3 */	
-	l.lws	r3,0x0(r5)	
+	l.ori	r5,r0,0x3 /* Word access, offset 3 */
+	l.lws	r3,0x0(r5)
 	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	l.nop
 
 #ifdef __OR1K_DELAY__
 	/* Now test them in delay slots */
 	l.ori	r5,r0,0x1 /* Half-word access, offset 1 */
-	l.j	1f  
+	l.j	1f
 	l.sh	0x0(r5),r0
 	l.nop
 1:	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	l.ori	r5,r0,0x3 /* Half-word access, offset 3 */
-	l.j	2f  	
+	l.j	2f
 	l.sh	0x0(r5),r0
-	l.nop	
+	l.nop
 2:	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 
 	/* Test l.lhz */
 	l.ori	r5,r0,0x1 /* Half-word access, offset 1 */
 	l.j	3f
 	l.lhz	r3,0x0(r5)
-	l.nop	
+	l.nop
 3:	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	l.ori	r5,r0,0x3 /* Half-word access, offset 3 */
 	l.j	4f
 	l.lhz	r3,0x0(r5)
 	l.nop
 4:	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	
+
 	/* Test l.lhs */
 	l.ori	r5,r0,0x1 /* Half-word access, offset 1 */
 	l.j	5f
 	l.lhs	r3,0x0(r5)
-	l.nop	
+	l.nop
 5:	l.addi	r12,r12,1 /* Increment 2nd exception counter */
 	l.ori	r5,r0,0x3 /* Half-word access, offset 3 */
 	l.j	6f
 	l.lhs	r3,0x0(r5)
 	l.nop
 6:	l.addi	r12,r12,1 /* Increment 2nd exception counter */
-	
+
 	/* Test l.sw */
-	l.ori 	r5,r0,0x1 /* Word access, offset 1 */     
+	l.ori 	r5,r0,0x1 /* Word access, offset 1 */
 	l.j 	7f
 	l.sw 	0x0(r5), r0
-	l.nop	
+	l.nop
 7:	l.addi 	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori 	r5,r0,0x2 /* Word access, offset 2 */     
+	l.ori 	r5,r0,0x2 /* Word access, offset 2 */
 	l.j 	8f
 	l.sw 	0x0(r5), r0
-	l.nop	
+	l.nop
 8:	l.addi 	r12,r12,1 /* Increment 2nd exception counter */
-	l.ori 	r5,r0,0x3 /* Word access, offset 3 */     
+	l.ori 	r5,r0,0x3 /* Word access, offset 3 */
 	l.j 	9f
 	l.sh 	0x0(r5), r0
 	l.nop
@@ -315,37 +315,37 @@ _align1:
 	/* Test l.lws */
 	l.ori 	r5,r0,0x1 /* Word access, offset 1 */
 	l.j 	13f
-	l.lws 	r3,0x0(r5)
+	 l.lws 	r3,0x0(r5)
 	l.nop
 13:	l.addi 	r12,r12,1 /* Increment 2nd exception counter */
 	l.ori 	r5,r0,0x2 /* Word access, offset 2 */
 	l.j 	14f
-	l.lws 	r3,0x0(r5)
+	 l.lws 	r3,0x0(r5)
 	l.nop
 14:	l.addi 	r12,r12,1 /* Increment 2nd exception counter */
 	l.ori 	r5,r0,0x3 /* Word access, offset 3 */
 	l.j 	15f
-	l.lws 	r3,0x0(r5)
+	 l.lws 	r3,0x0(r5)
 	l.nop
 15:	l.addi 	r12,r12,1 /* Increment 2nd exception counter */
 
 #endif
-	
+
 	/* Check 1st and 2nd exception counters are equal */
 	l.sfeq	r11,r12			/* Should be equal */
 	l.bf	17f
-	l.nop
+	 l.nop
 	l.nop	1
 17:	l.nop	2
 	l.nop
 
 	/* Illegal instruction exception */
-_illegal1:	
+_illegal1:
 	l.nop
 	l.nop
 	l.movhi r5, hi(0x44004800) /* Put "l.jr r9" instruction in r5 */
 	l.ori 	r5, r5, lo(0x44004800)
-	l.sw 	0x0(r0), r5 	/* Write "l.j r9" to address 0x0 in RAM */	
+	l.sw 	0x0(r0), r5 	/* Write "l.j r9" to address 0x0 in RAM */
 	l.movhi r5, 0xee00 	/* Put an illegal instruction in r5 */
 	l.sw 	0x4(r0), r5   	/* Write illegal instruction to RAM addr 0x4 */
 	l.movhi r5, 0x1500 	/* l.nop after illegal instruction */
@@ -357,25 +357,25 @@ _illegal1:
 	OR1K_INST(l.addi 	r12,r12,1),      /* Increment 2nd exception counter */
 	OR1K_INST(l.jalr 	r6) 		/* Jump to address 0x4, land on illegal insn */
  	)
-	l.nop 			/* Should return here */	
+	l.nop 			/* Should return here */
 	l.nop
 
 #ifdef __OR1K_DELAY__
 	/* Test in delay slot */
-	
+
 	l.movhi r5, 0xee00 	/* Put an illegal instruction in r5 */
 	l.sw 	0x4(r0), r5   	/* Write illegal instruction to RAM addr 0x4 */
-	l.mtspr r0,r0,OR1K_SPR_ICACHE_ICBIR_ADDR /* Invalidate line 0 of cache */	
+	l.mtspr r0,r0,OR1K_SPR_ICACHE_ICBIR_ADDR /* Invalidate line 0 of cache */
 	l.jalr 	r0 /* Jump to address 0, will be a jump back but with an illegal
 	             dslot instruction which will befixed by handler */
-	l.addi 	r12,r12,1 	/* Increment 2nd exception counter */
+	 l.addi 	r12,r12,1 	/* Increment 2nd exception counter */
 	l.nop 			/* Should return here */
 #endif
-	
+
 	/* Check 1st and 2nd exception counters are equal */
 	l.sfeq	r11,r12		/* Should be equal */
 	l.bf 	1f
-	l.nop
+	 l.nop
 	l.or 	r3, r12, r12
 	l.nop 	2 		/* Report expected exception count */
 	l.or 	r3, r11, r11
@@ -383,7 +383,7 @@ _illegal1:
 	l.nop 	1
 1:	l.nop
 	l.nop
-	
+
 
 _dbus1:
 	l.nop
@@ -391,9 +391,9 @@ _dbus1:
 	l.movhi r11, 0
 	l.ori r2, r0, 0xd /* put 0xd in r2, indicate it's databus test */
 	/* Cause access error */
-	/* Load word */	
+	/* Load word */
 	l.movhi r5, 0xee00 /* Address to cause an error */
-	l.lwz r6, 0(r5) 
+	l.lwz r6, 0(r5)
 	l.addi r12, r12, 1 /* Incremement secondary exception counter */
 	/* Load half */	
 	l.movhi r5, 0xee00 /* Address to cause an error */
@@ -472,7 +472,7 @@ _dbus1:
 5:	l.sfeqi	r7, 0
 	l.bf	5b		/* wait for "exception flag" */
 	 l.nop
-	l.addi r12, r12, 1	
+	l.addi r12, r12, 1
 
 	l.movhi	r7, 0		/* clear "exception flag" */
 	/* Store byte */
@@ -483,9 +483,9 @@ _dbus1:
 6:	l.sfeqi	r7, 0
 	l.bf	6b		/* wait for "exception flag" */
 	 l.nop
-	l.addi r12, r12, 1	
+	l.addi r12, r12, 1
 #endif
-	
+
 /* Check 1st and 2nd exception counters are equal */
 	l.sfeq	r11,r12			/* Should be equal */
 	l.bf 7f
@@ -497,10 +497,9 @@ _dbus1:
 	l.nop 1
 7:	l.nop
 
-	
-	
+
 _ibus1:
-	/* TODO: do this it with cache enabled/disabled */	
+	/* TODO: do this it with cache enabled/disabled */
 	l.movhi r12, 0 /* Reset exception counters */
 	l.movhi r11, 0
 	l.movhi r2, 0x0 /* put 0x0 in r2,indicate it's instruction bus test*/
@@ -511,22 +510,22 @@ _ibus1:
 	l.addi r12, r12, 1 /* Incremement secondary exception counter */
 	/* Check 1st and 2nd exception counters are equal */
 	l.sfeq	r11,r12			/* Should be equal */
-	l.bf 1f
-	l.nop
+	l.bf test_ok
+	 l.nop
+
+test_fail:
 	l.or r3, r12, r12
 	l.nop 2 /* Report expected exception count */
 	l.or r3, r11, r11
 	l.nop 2 /* Report actual exception count */
 	l.nop 1
-1:	l.nop
-	l.nop	
-	
+
 	/* End of tests - report and finish simulation */
+test_ok:
 	l.movhi	r3,hi(0x8000000d)
 	l.ori	r3,r3,lo(0x8000000d)
 	l.nop	2
 
-	l.addi r3,r0,0
-	l.jal	exit
-	l.nop
+	l.movhi	r3,0x0
+	l.nop	0x1
 

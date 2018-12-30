@@ -86,4 +86,5 @@ test_ok:
 	l.movhi	r3,0x8000
 	l.ori	r3,r3,0x000d
 	l.nop	0x2
+	l.movhi	r3,0x0
 	l.nop	0x1
