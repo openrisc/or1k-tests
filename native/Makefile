@@ -20,7 +20,7 @@ libs:
 
 $(STARGETS): $(BUILDDIR)/%: %.S
 	@mkdir -p $(dir $@)
-	$(CC) -Iinclude -Iinclude/$(TARGET) $(CFLAGS) -Llib $< -lsupport -o $@
+	$(CC) -nostartfiles -Iinclude -Iinclude/$(TARGET) $(CFLAGS) -Llib $< -lsupport -o $@
 
 clean:
 	make -C lib/ clean

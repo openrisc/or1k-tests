@@ -110,9 +110,9 @@ _main:
 
 	/* invalidate _test_area */
 
+test_ok:
 	l.movhi	r3, 0
-	l.jal	exit
-	 l.nop
+	l.nop	0x1
 
 /*
  * copies from the area pointed by r3->r4 to the place where r5 points to

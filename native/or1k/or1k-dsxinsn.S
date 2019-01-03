@@ -10,13 +10,13 @@
 	instruction in a delay slot. To do this, we need to have a
 	branch instruction as the very last instruction of a page,
 	with the delay slot instruction being on a new unmapped page.
-	
+
 	Set r10 to hold whether we are expecting SR[DSX] to be set or
 	not. Exceptions will advance the PC by 0x8 to step over both
 	the jump/branch and instruction causing an exception.
 
 	Julius Baxter <juliusbaxter@gmail.com>
-	
+
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -56,7 +56,7 @@
 
 
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+	.org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -70,46 +70,47 @@
 	l.addi  r2, r0, -3
 	l.and   r1, r1, r2
 	/* Jump to program initialisation code */
+
 	.global _start
 	l.movhi r4, hi(_start)
 	l.ori 	r4, r4, lo(_start)
 	l.jr    r4
-	l.nop
-  
+	 l.nop
+
 /* ---[ 0x200: BUS error ]------------------------------------------------ */
 	.org 0x200
 	l.j	test_fail
-	l.nop
-	
+	 l.nop
+
 /* ---[ 0x600: ALIGN error ]------------------------------------------------ */
 	.org 0x600
 	l.j	test_fail
-	l.nop
-	
+	 l.nop
+
 /* ---[ 0x700: ILLEGAL INSN exception ]------------------------------------- */
 	.org 0x700
 	l.j	test_fail
-	l.nop
+	 l.nop
 
 /* ---[ 0x900: DTLB exception ]--------------------------------------------- */
 	.org 0x900
 	l.j	test_fail
-	l.nop
+	 l.nop
 
 /* ---[ 0xa00: itlb miss ]---------------------------------------------- */
         .org 0xa00
 
 	/* First check if we're expecting a miss in a delay slot - check r10 */
-	l.mfspr	r3,r0,OR1K_SPR_SYS_EEAR_BASE	/* Get EPC */ 				
-	l.nop	2                       /* Report PC for diagnostic purpose */ 	
-	/* Check SR[DSX] was as expected */ 					
-	l.mfspr	r8,r0,OR1K_SPR_SYS_SR_ADDR    	/* Get SR */ 				
-	l.andi	r8,r8,OR1K_SPR_SYS_SR_DSX_MASK	/* Clear all bits except DSX */		
-	l.xor	r8,r8,r10		/* r8 will be >0 if error */ 		
-	l.sfne	r8,r0								
-	l.bf	test_fail 							
-	l.nop									
-	
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EEAR_BASE	/* Get EPC */
+	l.nop	2                       /* Report PC for diagnostic purpose */
+	/* Check SR[DSX] was as expected */
+	l.mfspr	r8,r0,OR1K_SPR_SYS_SR_ADDR    	/* Get SR */
+	l.andi	r8,r8,OR1K_SPR_SYS_SR_DSX_MASK	/* Clear all bits except DSX */
+	l.xor	r8,r8,r10		/* r8 will be >0 if error */
+	l.sfne	r8,r0
+	l.bf	test_fail
+	 l.nop
+
 	/* Simple itlb miss handler - install 1-1 mappings on misses */
 	l.mfspr	r12,r0,OR1K_SPR_SYS_EEAR_BASE /* Get the PC of the exception */
 	l.srli	r13,r12,13 /* Get the page number, divide by 8K, store in r13 */
@@ -125,28 +126,28 @@
 	/* Write it into the appropriate translate register  */
 	l.mtspr	r13,r15,OR1K_SPR_IMMU_ITLBW_TR_ADDR(0, 0)
 	/* MMU setup should now be complete, let's go back */
-	l.rfe	
-	
+	l.rfe
+
 /* ---[ 0xe00: TRAP error ]------------------------------------------------ */
 	.org 0xe00
 	l.j	test_fail
-	l.nop
-	
+	 l.nop
+
 /* =================================================== [ text section ] === */
 	.section  .text
 
-/* =================================================== [ start ] === */	
+/* =================================================== [ start ] === */
 
 	.global _start
 _start:
 	/* First initialise the instruction MMU */
-	
+
 	l.mfspr	r3,r0,OR1K_SPR_SYS_IMMUCFGR_ADDR
 	l.andi	r4,r3,OR1K_SPR_SYS_IMMUCFGR_NTS_MASK
 	l.srli	r4,r4,OR1K_SPR_SYS_IMMUCFGR_NTS_LSB
 	l.ori	r6,r0,1
 	l.sll	r3,r6,r4
-	
+
 	/* Setup the IMMU's TLBs - invalidate them */
 	l.movhi r4, hi(OR1K_SPR_IMMU_ITLBW_MR_ADDR(0, 0))
 	l.ori r4, r4, lo(OR1K_SPR_IMMU_ITLBW_MR_ADDR(0, 0))
@@ -157,18 +158,18 @@ _start:
 	l.addi r4, r4, 0x1
 	l.sfeq r3, r0
 	l.bnf 1b
-	l.addi r3, r3, -1
+	 l.addi r3, r3, -1
 
 	/* Enable MMU - we should get a miss for this page */
 	l.movhi	r10,0 /* Clear r10 - not expecting to be in a delay slot
 			when this TLB miss occurs */
-	
+
 	.extern lo_immu_en
 	/* Now enable the IMMU */
 	l.movhi r4, hi(lo_immu_en)
 	l.ori r4, r4, lo(lo_immu_en)
 	l.jalr r4
-	l.nop
+	 l.nop
 
 	/* Copy the 2 instructions from the ljr9_function function to
 	places which should cause TLB misses in the delay slot */
@@ -198,8 +199,8 @@ _start:
 	l.nop	2
 
 	l.jalr	r1
-	l.nop
-	
+	 l.nop
+
 	/* Tests finish */
 
 	/* Now do what we've done for the miss but put delay slot instruction
@@ -233,19 +234,19 @@ _start:
 	l.nop	2
 
 	l.jalr	r1
-	l.nop
-	
+	 l.nop
+
 
 	/* TODO - track and check the number of TLB misses we should
 	have incurred */
-	
+
 	/* Now repeat the tests with caches enabled if they weren't */
 	l.mfspr	r1,r0,OR1K_SPR_SYS_SR_ADDR
 	l.andi	r1,r1,OR1K_SPR_SYS_SR_ICE_MASK
 	l.sfeq	r0,r1  /* Set flag if caches not enabled */
 	l.bf	restart_with_caches_enabled
-	l.nop
-	
+	 l.nop
+
 test_ok:
 	l.movhi	r3,0x8000
 	l.ori	r3,r3,0x000d
@@ -261,7 +262,7 @@ test_fail:
 	l.nop	1
 
 restart_with_caches_enabled:
-	
+
 	/* Disable IMMU before restart*/
         l.mfspr r3,r0,OR1K_SPR_SYS_SR_ADDR
         l.xori  r3,r3,OR1K_SPR_SYS_SR_IME_MASK
@@ -270,9 +271,9 @@ restart_with_caches_enabled:
 	l.ori	r9,r9,lo(.L1)
         l.mtspr r0,r9,OR1K_SPR_SYS_EPCR_BASE
         l.rfe
-.L1:	
+.L1:
 	l.jal 	_cache_init
-	l.nop
+	 l.nop
 
 	/* Actually we won't want dcache enabled as we'll be reading
 	and writing instructions around the shop so will not want them
@@ -280,13 +281,13 @@ restart_with_caches_enabled:
         l.mfspr r3,r0,OR1K_SPR_SYS_SR_ADDR
         l.xori  r3,r3,OR1K_SPR_SYS_SR_DCE_MASK
         l.mtspr r0,r3,OR1K_SPR_SYS_SR_ADDR
-	
+
 	l.j     _start
-	l.nop
+	 l.nop
 
 	/* A simple function, which we will copy the instructions of
 	to different parts of memory */
 ljr9_function:
 	l.jr	r9
-	l.nop
+	 l.nop
 
