@@ -1,11 +1,11 @@
 #include <or1k-asm.h>
 #include <or1k-sprs.h>
 #include "board.h"
-	
+
 /*
 
 	User IRQ while looping to self test
-	
+
 	Within the test we'll use following global variables:
 
 	r10 irq interrupt counter
@@ -51,7 +51,7 @@
 
 
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+	.org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -69,9 +69,8 @@
 	l.movhi r4, hi(_start)
 	l.ori 	r4, r4, lo(_start)
 	l.jr    r4
-	l.nop
+	 l.nop
 
-	
 /* =================================================== [ User interrupt ] === */
 	.org 0x800
 	.global _user_irq_handler
@@ -100,18 +99,18 @@ _user_irq_handler:
 /* =================================================== [ text section ] === */
 	.section  .text
 
-/* =================================================== [ start ] === */	
+/* =================================================== [ start ] === */
 
 	.global _start
-_start:	
+_start:
 	// Kick off test
 	l.jal   _main
-	l.nop
+	 l.nop
 
-/* =================================================== [ main ] === */	
-.global _main
+/* =================================================== [ main ] === */
+	.global _main
 _main:
-	
+
 	#
 	# unmask (enable) all ints
 	#
@@ -130,13 +129,13 @@ _main:
 	l.movhi	r11, 0 // register to store some calculation values
 	// set up r12 to hold intgen's base address
 	l.movhi	r12,hi(INTGEN_BASE)
-	
+
 #define INTGEN_LOAD(x)	\
 	l.ori	r5,r0,lo(x)	;\
 	l.sb	0(r12),r5
-	
+
 	/* Test begin */
-	
+
 	INTGEN_LOAD(2)
 	l.j	0
 	INTGEN_LOAD(3)
@@ -219,14 +218,15 @@ _main:
 
 	l.sfnei	r10,39
 	l.bf _fail
-	l.nop
-	
+	 l.nop
+
+test_ok:
 	l.movhi r3, hi(0x8000000d)
 	l.ori r3, r3, lo(0x8000000d)
 	l.nop 2
 	l.ori r3, r0, 0
 	l.nop 1
-	
+
 _fail:
 	l.movhi r3, hi(0xbaaaaaad)
 	l.ori r3, r3, lo(0xbaaaaaad)

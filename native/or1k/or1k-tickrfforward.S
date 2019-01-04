@@ -4,10 +4,9 @@
 
 	Attempts to recreate a bug where the register forwarding logic may
 	behave incorrectly when being interrupted
-	
+
 	Julius Baxter, julius@opencores.org
 
-	
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -35,16 +34,15 @@
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
-	
+
 #include <or1k-asm.h>
 #include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
-
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+	.org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -57,7 +55,7 @@
 	l.movhi r4, hi(_start)
 	l.ori 	r4, r4, lo(_start)
 	l.jr    r4
-	l.nop
+	 l.nop
 
 	// Tick handler
 	.org 0x500
@@ -74,14 +72,13 @@
 	l.nop 0x2
 
 	l.rfe
-	
-	
+
 	// Illegal instruction handler
 	.org 0x700
 	l.movhi	r3,0xbaaa
 	l.ori	r3,r3,0xaaad
 	l.nop	1
-	
+
 	// Trap handler
 	.org 0xe00
 	l.movhi	r3,0xbaaa
@@ -91,21 +88,19 @@
 /* =================================================== [ text ] === */
 	.section .text
 
-/* =================================================== [ start ] === */	
+/* =================================================== [ start ] === */
 
 	.global _start
-_start:	
+_start:
 	// Kick off test
 	l.jal   _main
-	l.nop
-	
-
+	 l.nop
 
 /* =================================================== [ main ] === */
-	
-	.global _main	
+
+	.global _main
 _main:
-	
+
 	l.movhi	r1,0	/* clear r1 - used as main loop counter */
 	l.movhi	r2,0	/* clear r2 - used as exception handler counter */
 	l.movhi	r10,0   /* clear r10 - used to indicate the test */
@@ -116,7 +111,6 @@ _main:
         */
        l.movhi r20,0xbaaa
        l.ori   r20,r20,0xaaad
-	
 
 	/* First check auto-restart timer */
 	l.addi	r10, r10, 1
@@ -131,7 +125,7 @@ _main:
 	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
 	/* interrupt after 40 cycles */
 	l.ori	r6, r0, 60
-	
+
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
 	l.mtspr r0,r0,OR1K_SPR_TICK_TTCR_ADDR 		# set TTCR
@@ -156,7 +150,7 @@ restart_timer_interrupt_check:
 	l.addi	r1,r1,4		; \
 	l.or	r3,r1,r1	; \
 	l.nop 0x2 		;
-	
+
 #define SIXTYFOURADDS() \
 	EIGHTADDS() \
 	EIGHTADDS() \
@@ -165,7 +159,7 @@ restart_timer_interrupt_check:
 	EIGHTADDS() \
 	EIGHTADDS() \
 	EIGHTADDS() \
-	EIGHTADDS() 
+	EIGHTADDS()
 
 #define FIVETWELVEADDS() \
 	SIXTYFOURADDS() \
@@ -189,7 +183,7 @@ restart_timer_interrupt_check:
 
 	//SIXTYFOURADDS()
 	FOURKADDS()
-	
+
 check_results:
 	l.mtspr r0,r0,OR1K_SPR_TICK_TTMR_ADDR /* clear ttmr, turn it off */
 	l.ori	r3,r1,0
@@ -199,8 +193,9 @@ check_results:
 	l.addi  r2, r2, (4096*4)
 	l.sfeq	r1,r2
 	l.bf	test_ok
+	 l.nop
 
-test_fail:	
+test_fail:
 	l.movhi	r3,0xbaaa
 	l.ori	r3,r3,0xaaad
 	l.nop	0x1
@@ -211,6 +206,4 @@ test_ok:
 	l.nop	0x2
 	l.ori 	r3, r0, 0 /* Clear R3 */
 	l.nop 	0x1 /* Exit simulation */
-	l.nop
-	l.nop
 

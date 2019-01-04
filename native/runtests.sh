@@ -15,7 +15,7 @@
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
 CORE=mor1kx-generic
-TEST_TIMEOUT="1m"
+TEST_TIMEOUT="3m"
 
 test_count=0
 fail_count=0
@@ -33,7 +33,7 @@ if [ -z $TEST_PATTERN ] ; then
   TEST_PATTERN="or1k-*"
 fi
 
-echo > $TARGET.log
+echo > runtests.log
 
 # run tests
 
@@ -59,7 +59,7 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
     fi
   fi
 
-  cat $test_log >> $TARGET.log
+  cat $test_log >> runtests.log
   rm $test_log
 done
 
