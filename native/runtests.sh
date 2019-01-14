@@ -15,6 +15,7 @@
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
 CORE=mor1kx-generic
+PIPELINE=CAPPUCCINO
 TEST_TIMEOUT="3m"
 
 test_count=0
@@ -44,10 +45,10 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_log=`mktemp -t $test_name.XXX.log`
 
   date -u -Iseconds > $test_log
-  echo "Running: fusesoc sim $CORE --elf-load $test_path" >> $test_log
+  echo "Running: fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE" >> $test_log
 
   printf "%-60s" "Running $test_name"
-  if ! timeout $TEST_TIMEOUT fusesoc sim $CORE --elf-load $test_path >> $test_log 2>&1 ; then
+  if ! timeout $TEST_TIMEOUT fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE>> $test_log 2>&1 ; then
     echo "TIME OUT"
     ((fail_count++))
   else
