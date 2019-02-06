@@ -15,8 +15,12 @@
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
 CORE=mor1kx-generic
-PIPELINE=CAPPUCCINO
+PIPELINE=$1
 TEST_TIMEOUT="3m"
+
+if [ -z $PIPELINE ] ; then
+  PIPELINE=CAPPUCCINO
+fi
 
 test_count=0
 fail_count=0
@@ -29,11 +33,13 @@ if [ ! -d $DIR/build/or1k ] ; then
   exit 1
 fi
 
-TEST_PATTERN=$1
+TEST_PATTERN=$2
 if [ -z $TEST_PATTERN ] ; then
   TEST_PATTERN="or1k-*"
 fi
 
+echo "Running tests for pipeline: $PIPELINE, with test filter: $TEST_PATTERN"
+echo
 echo > runtests.log
 
 # run tests
