@@ -81,7 +81,9 @@
 #endif	
 	l.mtspr	r0,r3,OR1K_SPR_SYS_EPCR_BASE
 	l.addi	r1,r1,1		/* Increment exception counter */
-	l.or	r3,r1,r0	/* Move counter to r3 to report */
+	l.sfges	r1,r4
+	l.bf	test_fail
+	 l.or	r3,r1,r0	/* Move counter to r3 to report */
 	l.nop 	0x2
 	l.rfe
 
@@ -105,7 +107,12 @@ _start:
 _main:
 
 	l.movhi	r1,0	/* clear r1 - used as exception handler counter */
-	l.movhi	r2,0	/* clear r2 - used as exception main function counter */
+	l.movhi	r2,0	/* clear r2 - used as main function counter */
+	l.movhi	r4,0	/* clear r4 - used as exception max */
+
+	/* The main and exception counters should only go up to 2, if we
+	   get to 0xf its a problem.  */
+	l.ori	r4,r4,0x000f
 
 	/* Generate an invalid addresses */
 	l.movhi	r5,0xee00

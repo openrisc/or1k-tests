@@ -100,15 +100,15 @@ _main:
 
 	/* An unsupported instruction, custom insns, in delay slot */
 	l.j	test_function
-	l.cust1
+	 l.cust1
 	l.addi	r2,r2,1
 
 	l.j	test_function
-	l.msb	r0,r0
+	 l.msb	r0,r0
 	l.addi	r2,r2,1
 
 	l.j	test_function
-	lf.add.d r4,r5,r6
+	 lf.madd.d r3,r1,r2
 	l.addi	r2,r2,1
 
 	l.sfeq	r1,r2

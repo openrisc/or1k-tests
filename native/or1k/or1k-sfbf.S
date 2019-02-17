@@ -65,7 +65,7 @@ _start:
 _main:
 	l.movhi r1, 0
 
-	/* backward, taken */
+	/* 1. backward, taken */
 .L1:
 	l.sfeqi		r1, 30
 	l.bnf		.L1
@@ -79,7 +79,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* backward, taken, flag in delay slot */
+	/* 2. backward, taken, flag in delay slot */
 	l.movhi		r1, 0
 	l.sfne		r0,r0
 .L2:
@@ -95,7 +95,7 @@ _main:
 	l.bf	test_fail
 	 l.nop
 
-	/* backward, taken, flag changing value just before bf */
+	/* 3. backward, taken, flag changing value just before bf */
 	l.movhi		r1, 0
 .L3:
 	l.sfeq		r0, r0
@@ -111,7 +111,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* backward, taken, change flag in delay slot */
+	/* 4. backward, taken, change flag in delay slot */
 	l.movhi		r1, 0
 	l.sfne		r0,r0
 .L4:
@@ -128,7 +128,7 @@ _main:
 	l.bf	test_fail
 	 l.nop
 
-	/* forward, not taken */
+	/* 5. forward, not taken */
 	l.movhi		r1, 0
 .L5:
 	l.sfeqi		r1, 30
@@ -147,7 +147,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* forward, taken */
+	/* 6. forward, taken */
 	l.movhi		r1, 0
 .L6:
 	l.sfeqi		r1, 30
@@ -169,7 +169,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* forward, taken */
+	/* 7. forward, taken */
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 .L7:
@@ -195,7 +195,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* forward, not taken, with sf in delay slot*/
+	/* 8. forward, not taken, with sf in delay slot*/
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 	l.sfne		r0, r0
@@ -220,7 +220,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* forward, taken, with side effect after delay slot */
+	/* 9. forward, taken, with side effect after delay slot */
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 .L9:
@@ -246,7 +246,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* backward, not taken */
+	/* 10. (a) backward, not taken */
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 	l.j		.L10_0
@@ -274,7 +274,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* backward, not taken, flag in delay slot */
+	/* 11. (b) backward, not taken, flag in delay slot */
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 	l.j		.L11_0
@@ -304,7 +304,7 @@ _main:
 	 l.nop
 
 
-	/* backward, not taken, flag changing value just before bf */
+	/* 12. (c) backward, not taken, flag changing value just before bf */
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 	l.j		.L12_0
@@ -334,7 +334,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* backward, not taken, change flag in delay slot */
+	/* 13. (d) backward, not taken, change flag in delay slot */
 	l.movhi		r1, 0
 	l.movhi		r2, 0
 	l.j		.L13_0
@@ -354,7 +354,7 @@ _main:
 .Lexit13:
 	l.addi		r2, r2, 1
 
-	/* report and check result */
+	/* 14. (e) report and check result */
 	l.ori		r3, r0, 13
 	l.nop		2
 	l.sfnei		r1, 32
@@ -429,7 +429,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* branch over jump test */
+	/* 15. (f) branch over jump test */
 	l.ori		r3, r0, 15
 	l.nop		2
 	l.movhi		r1, 0
@@ -511,7 +511,7 @@ _main:
 	l.bf		test_fail
 	 l.nop
 
-	/* branch to jal, with counter in delay slot */
+	/* 16. (10) branch to jal, with counter in delay slot */
 	l.ori		r3, r0, 16
 	l.nop		2
 	l.ori		r1, r1, 32
@@ -562,14 +562,14 @@ test_ok:
 	l.andi 	r2,r2,OR1K_SPR_SYS_UPR_TTP_MASK
 	l.sfeq	r2,r0
 	l.bf	test_finish
-	l.nop
-	/* We do have timers, in this case check it it's enabled yet */
+	 l.nop
+	/* We do have timers, in this case check if it's enabled yet */
 	l.mfspr	r2,r0,OR1K_SPR_SYS_SR_ADDR
 	l.andi	r2,r2,OR1K_SPR_SYS_SR_TEE_MASK
 	l.sfeq 	r2,r0
 	/* we've not run through with timers so enable them and restart */
 	l.bf	enable_timers_and_restart
-	l.nop
+	 l.nop
 
 test_finish:
 	/* report interrupts */
@@ -592,8 +592,8 @@ enable_timers_and_restart:
 
 	/* Setup timer mode register to run in restart mode, with interrupts */
 	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
-	/* interrupt every 30 cycles */
-	l.ori	r6, r0, 30
+	/* interrupt every 100 cycles */
+	l.ori	r6, r0, 100
 
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
