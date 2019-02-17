@@ -806,8 +806,8 @@ enable_timers_and_restart:
 
 	/* Setup timer mode register to run in restart mode, with interrupts */
 	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
-	/* interrupt every 40 cycles */
-	l.ori	r6, r0, 40
+	/* interrupt every 100 cycles */
+	l.ori	r6, r0, 100
 	
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */

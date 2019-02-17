@@ -105,12 +105,12 @@ _main:
 	l.movhi	r2,0	/* clear r2 - used as exception handler counter */
 	l.movhi	r10,0   /* clear r10 - used to indicate the test */
 
-       /*
-        * initiate r20 with a known value, when the bug occurs
-        * r1 will contain this value
-        */
-       l.movhi r20,0xbaaa
-       l.ori   r20,r20,0xaaad
+	/*
+	 * initiate r20 with a known value, when the bug occurs
+	 * r1 will contain this value
+	 */
+	l.movhi r20,0xbaaa
+	l.ori   r20,r20,0xaaad
 
 	/* First check auto-restart timer */
 	l.addi	r10, r10, 1
@@ -123,8 +123,8 @@ _main:
 
 	/* Restart timer causing interrupt */
 	l.movhi r4,hi((OR1K_SPR_TICK_TTMR_MODE_RESTART << OR1K_SPR_TICK_TTMR_MODE_LSB) | OR1K_SPR_TICK_TTMR_IE_MASK)
-	/* interrupt after 40 cycles */
-	l.ori	r6, r0, 60
+	/* interrupt after 600 cycles */
+	l.ori	r6, r0, 600
 
 	/* load timer */
 	l.or	r5,r4,r6 /* value we'll interrupt on */
