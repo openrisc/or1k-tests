@@ -15,11 +15,16 @@
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
 CORE=mor1kx-generic
-PIPELINE=$1
+PIPELINE=$1 ; shift
+TEST_PATTERN=$1 ; shift
 TEST_TIMEOUT="3m"
 
 if [ -z $PIPELINE ] ; then
   PIPELINE=CAPPUCCINO
+fi
+
+if [ -z $TEST_PATTERN ] ; then
+  TEST_PATTERN="or1k-*"
 fi
 
 test_count=0
@@ -31,11 +36,6 @@ FAIL="\e[31mFAIL\e[0m"
 if [ ! -d $DIR/build/or1k ] ; then
   echo "Cannot find any tests, did you build them?"
   exit 1
-fi
-
-TEST_PATTERN=$2
-if [ -z $TEST_PATTERN ] ; then
-  TEST_PATTERN="or1k-*"
 fi
 
 echo "Running tests for pipeline: $PIPELINE, with test filter: $TEST_PATTERN"
@@ -54,7 +54,7 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   echo "Running: fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE" >> $test_log
 
   printf "%-60s" "Running $test_name"
-  if ! timeout $TEST_TIMEOUT fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE>> $test_log 2>&1 ; then
+  if ! timeout $TEST_TIMEOUT fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE $@ >> $test_log 2>&1 ; then
     echo "TIME OUT"
     ((fail_count++))
   else
