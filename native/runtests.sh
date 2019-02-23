@@ -11,6 +11,18 @@
 #    exit(0x00000000)
 # Each test must run within the set TEST_TIMEOUT or it will timeout and be
 # considered a failure
+#
+# OPTIONS
+#
+# No arguments are required, by default the script will run fusesoc sim
+# with the CAPPUCCINO pipeline.
+#
+# Arg 1     [test_pattern] A glob of the tests to run.  The default is or1k-*.
+#
+# ENVIRONMENT VARIABLES
+#
+# SIM_ARGS  arguments to send to fusesoc sim directly, i.e. --sim=verilator
+# CORE_ARGS arguments to send to mor1kx-generic, i.e. --pipeline CAPPUCCINO
 
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
@@ -38,11 +50,25 @@ if [ ! -d $DIR/build/or1k ] ; then
   exit 1
 fi
 
-echo "Running tests for pipeline: $PIPELINE, with test filter: $TEST_PATTERN"
+echo "Running test with test filter: $TEST_PATTERN"
+if [ "$SIM_ARGS" ] ; then
+  echo "  SIM_ARGS  '$SIM_ARGS'"
+fi
+if [ "$CORE_ARGS" ] ; then
+  echo "  CORE_ARGS '$CORE_ARGS'"
+fi
 echo
 echo > runtests.log
 
 # run tests
+sigint_exit=
+inthandler() {
+  sigint_exit=y
+  if [ ! -z "$timeout_pid" ] ; then
+    kill -INT -$timeout_pid
+  fi
+}
+trap inthandler SIGINT
 
 for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_name=`basename $test_path`
@@ -51,10 +77,13 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_log=`mktemp -t $test_name.XXX.log`
 
   date -u -Iseconds > $test_log
-  echo "Running: fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE" >> $test_log
+  echo "Running: fusesoc sim $SIM_ARGS $CORE --elf-load $test_path $CORE_ARGS" >> $test_log
 
   printf "%-60s" "Running $test_name"
-  if ! timeout $TEST_TIMEOUT fusesoc sim $CORE --elf-load $test_path --pipeline $PIPELINE $@ >> $test_log 2>&1 ; then
+  timeout $TEST_TIMEOUT fusesoc sim $SIM_ARGS $CORE --elf-load $test_path $CORE_ARGS >> $test_log 2>&1 &
+  timeout_pid=$!
+
+  if ! wait $timeout_pid ; then
     echo "TIME OUT"
     ((fail_count++))
   else
@@ -65,9 +94,14 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
       ((fail_count++))
     fi
   fi
+  timeout_pid=
 
   cat $test_log >> runtests.log
   rm $test_log
+
+  if [ "$sigint_exit" ] ; then
+    exit 1
+  fi
 done
 
 # finish up

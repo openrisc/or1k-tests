@@ -12,13 +12,13 @@ CTARGETS = $(CTESTS:%.c=$(BUILDDIR)/%)
 
 BUILDDIR=build
 
-.PHONY: all clean libs
-all: libs $(STARGETS)
+.PHONY: all clean lib
+all: lib $(STARGETS)
 
-libs:
-	make -C lib/
+lib:
+	$(MAKE) --directory=$@
 
-$(STARGETS): $(BUILDDIR)/%: %.S
+$(STARGETS): $(BUILDDIR)/%: %.S lib
 	@mkdir -p $(dir $@)
 	$(CC) -nostartfiles -Iinclude -Iinclude/$(TARGET) $(CFLAGS) -Llib $< -lsupport -o $@
 
