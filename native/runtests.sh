@@ -27,13 +27,8 @@
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
 CORE=mor1kx-generic
-PIPELINE=$1 ; shift
 TEST_PATTERN=$1 ; shift
 TEST_TIMEOUT="3m"
-
-if [ -z $PIPELINE ] ; then
-  PIPELINE=CAPPUCCINO
-fi
 
 if [ -z $TEST_PATTERN ] ; then
   TEST_PATTERN="or1k-*"
@@ -72,6 +67,7 @@ trap inthandler SIGINT
 
 for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_name=`basename $test_path`
+  test_path=`readlink -f $test_path`
   ((test_count++))
 
   test_log=`mktemp -t $test_name.XXX.log`
