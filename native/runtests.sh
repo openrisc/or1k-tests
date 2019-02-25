@@ -23,6 +23,13 @@
 #
 # SIM_ARGS  arguments to send to fusesoc sim directly, i.e. --sim=verilator
 # CORE_ARGS arguments to send to mor1kx-generic, i.e. --pipeline CAPPUCCINO
+# EXPECTED_FAILURES whitespace separated list of test cases that are expected
+# to fail.
+#
+# RETURN VALUE
+# Returns 0 is there are no unexpected_fails and no unpexpected_passes.  If
+# there are valid unexpected passes one should adjust the EXPECTED_FAILURES
+# ENVIRONMENT VARIABLE.
 
 DIR=`dirname $0`
 TARGET=mor1kx_cappuccino
@@ -35,7 +42,10 @@ if [ -z $TEST_PATTERN ] ; then
 fi
 
 test_count=0
-fail_count=0
+expected_fail_count=0
+timeout_count=0
+unexpected_fail_count=0
+unexpected_pass_count=0
 
 PASS="\e[32mPASS\e[0m"
 FAIL="\e[31mFAIL\e[0m"
@@ -51,6 +61,9 @@ if [ "$SIM_ARGS" ] ; then
 fi
 if [ "$CORE_ARGS" ] ; then
   echo "  CORE_ARGS '$CORE_ARGS'"
+fi
+if [ "$EXPECTED_FAILURES" ] ; then
+  echo "  EXPECTED_FAILURES '$EXPECTED_FAILURES'"
 fi
 echo
 echo > runtests.log
@@ -68,6 +81,8 @@ trap inthandler SIGINT
 for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_name=`basename $test_path`
   test_path=`readlink -f $test_path`
+  # pattern to check EXPECTED_FAILURES with word boundary regex
+  expected_failure_pattern=\\b$test_name\\b
   ((test_count++))
 
   test_log=`mktemp -t $test_name.XXX.log`
@@ -81,13 +96,23 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
 
   if ! wait $timeout_pid ; then
     echo "TIME OUT"
-    ((fail_count++))
+    ((timeout_count++))
   else
     if grep -q "exit(0x00000000)" $test_log ; then
-      echo -e "$PASS"
+      if [ "$EXPECTED_FAILURES" ] && [[ "$EXPECTED_FAILURES" =~ $expected_failure_pattern ]] ; then
+        echo "UNEXPECTED PASS"
+        ((unexpected_pass_count++))
+      else
+        echo -e "$PASS"
+      fi
     else
-      echo -e "$FAIL"
-      ((fail_count++))
+      if [ "$EXPECTED_FAILURES" ] && [[ "$EXPECTED_FAILURES" =~ $expected_failure_pattern ]] ; then
+        echo -e "$FAIL"
+        ((expected_fail_count++))
+      else
+        echo "UNEXPECTED FAIL"
+        ((unexpected_fail_count++))
+      fi
     fi
   fi
   timeout_pid=
@@ -102,9 +127,18 @@ done
 
 # finish up
 
-printf "%-60sTotal: %3d  FAIL: %3d\n" "Results" $test_count $fail_count
+printf "%-60sTotal: %3d\n"               "Results" $test_count
+printf "%-60sExpected Failures:   %3d\n" " "       $expected_fail_count
+printf "%-60sUnexpected Failures: %3d\n" " "       $unexpected_fail_count
+printf "%-60sUnexpected Pass:     %3d\n" " "       $unexpected_pass_count
+printf "%-60sTimeouts:            %3d\n" " "       $timeout_count
 
-if [ $fail_count -gt 0 ] ; then
+if [ $unexpected_fail_count -gt 0 ] \
+   || [ $unexpected_pass_count -gt 0 ] \
+   || [ $timeout_count -gt 0 ] ; then
+  echo "FAILURE"
   exit 1
 fi
+
+echo "SUCCESS"
 exit 0
