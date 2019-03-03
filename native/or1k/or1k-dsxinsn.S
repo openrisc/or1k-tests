@@ -247,12 +247,22 @@ have_mmu:
 	l.jalr	r1
 	 l.nop
 
-
 	/* TODO - track and check the number of TLB misses we should
 	have incurred */
 
-	/* Now repeat the tests with caches enabled if they weren't */
-	l.mfspr	r1,r0,OR1K_SPR_SYS_SR_ADDR
+	/* Check if we have an instruction cache */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi	r4,r3,OR1K_SPR_SYS_UPR_UP_MASK
+	l.sfeq	r4,r0
+	l.bf	have_cache /* If we don't have a UPR assume we have a cache */
+	 l.andi r4,r3,OR1K_SPR_SYS_UPR_ICP_MASK
+	l.sfeq	r4,r0
+	l.bf	test_ok /* No cache, done */
+
+have_cache:
+	/* If we have a instruction cache repeat the tests with caches
+ 	   enabled if they weren't */
+	 l.mfspr r1,r0,OR1K_SPR_SYS_SR_ADDR
 	l.andi	r1,r1,OR1K_SPR_SYS_SR_ICE_MASK
 	l.sfeq	r0,r1  /* Set flag if caches not enabled */
 	l.bf	restart_with_caches_enabled
