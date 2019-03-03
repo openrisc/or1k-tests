@@ -140,9 +140,20 @@
 
 	.global _start
 _start:
-	/* First initialise the instruction MMU */
+	l.movhi	r13,0x0
 
-	l.mfspr	r3,r0,OR1K_SPR_SYS_IMMUCFGR_ADDR
+	/* First check if we have an MMU */
+	l.mfspr	r3,r0,OR1K_SPR_SYS_UPR_ADDR
+	l.andi	r4,r3,OR1K_SPR_SYS_UPR_UP_MASK
+	l.sfeq	r4,r0
+	l.bf	have_mmu /* If we don't have a UPR assume we have an MMU */
+	 l.andi r4,r3,OR1K_SPR_SYS_UPR_IMP_MASK
+	l.sfeq	r4,r0
+	l.bf	test_fail /* No MMU we cannot do the test so fail */
+
+have_mmu:
+	/* If we have an MMU initialise the instruction MMU */
+	 l.mfspr r3,r0,OR1K_SPR_SYS_IMMUCFGR_ADDR
 	l.andi	r4,r3,OR1K_SPR_SYS_IMMUCFGR_NTS_MASK
 	l.srli	r4,r4,OR1K_SPR_SYS_IMMUCFGR_NTS_LSB
 	l.ori	r6,r0,1
