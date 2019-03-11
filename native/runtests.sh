@@ -32,7 +32,6 @@
 # ENVIRONMENT VARIABLE.
 
 DIR=`dirname $0`
-TARGET=mor1kx_cappuccino
 CORE=mor1kx-generic
 TEST_PATTERN=$1 ; shift
 TEST_TIMEOUT="3m"
@@ -56,14 +55,17 @@ if [ ! -d $DIR/build/or1k ] ; then
 fi
 
 echo "Running test with test filter: $TEST_PATTERN"
-if [ "$SIM_ARGS" ] ; then
-  echo "  SIM_ARGS  '$SIM_ARGS'"
+if [ "$TARGET_ARGS" ] ; then
+  echo "  TARGET_ARGS  '$TARGET_ARGS'"
 fi
 if [ "$CORE_ARGS" ] ; then
   echo "  CORE_ARGS '$CORE_ARGS'"
 fi
 if [ "$EXPECTED_FAILURES" ] ; then
   echo "  EXPECTED_FAILURES '$EXPECTED_FAILURES'"
+fi
+if [ -z "$TARGET" ] ; then
+  TARGET=mor1kx_tb
 fi
 echo
 echo > runtests.log
@@ -72,7 +74,7 @@ echo > runtests.log
 sigint_exit=
 inthandler() {
   sigint_exit=y
-  if [ ! -z "$timeout_pid" ] ; then
+  if [ "$timeout_pid" ] ; then
     kill -INT -$timeout_pid
   fi
 }
@@ -88,10 +90,10 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_log=`mktemp -t $test_name.XXX.log`
 
   date -u -Iseconds > $test_log
-  echo "Running: fusesoc sim $SIM_ARGS $CORE --elf-load $test_path $CORE_ARGS" >> $test_log
+  echo "Running: fusesoc run --target $TARGET $TARGET_ARGS $CORE --elf-load $test_path $CORE_ARGS" >> $test_log
 
   printf "%-60s" "Running $test_name"
-  timeout $TEST_TIMEOUT fusesoc sim $SIM_ARGS $CORE --elf-load $test_path $CORE_ARGS >> $test_log 2>&1 &
+  timeout $TEST_TIMEOUT fusesoc run --target $TARGET $TARGET_ARGS $CORE --elf-load $test_path $CORE_ARGS >> $test_log 2>&1 &
   timeout_pid=$!
 
   if ! wait $timeout_pid ; then
