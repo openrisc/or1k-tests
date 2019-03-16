@@ -4,7 +4,7 @@
 	Checks l.ff1 and l.fl1 outputs for every bit position
 
 	Julius Baxter, julius.baxter@orsoc.se
-	
+
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -32,17 +32,17 @@
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
-	
-#include <or1k-asm.h>	
+
+#include <or1k-asm.h>
 #include <or1k-sprs.h>
 #include "board.h"
-	
+
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
 
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+        .org 0x100 
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -61,14 +61,14 @@
 	l.ori 	r3, r0, 1
 	l.nop 	0x1
 
-	
+
 /* =================================================== [ text ] === */
 	.section .text
 
-/* =================================================== [ start ] === */	
+/* =================================================== [ start ] === */
 
 	.global _start
-_start:	
+_start:
 
 	/* Instruction cache enable */
 	/* Check if IC present and skip enabling otherwise */
@@ -76,14 +76,14 @@ _start:
 	l.andi  r26,r24,OR1K_SPR_SYS_UPR_ICP_MASK
 	l.sfeq  r26,r0
 	OR1K_DELAYED_NOP(l.bf    .L8)
-	
+
 	/* Disable IC */
 	l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
 	l.addi  r5,r0,-1
 	l.xori  r5,r5,OR1K_SPR_SYS_SR_ICE_MASK
 	l.and   r5,r6,r5
 	l.mtspr r0,r5,OR1K_SPR_SYS_SR_ADDR
-	
+
 	/* Establish cache block size
 	If BS=0, 16;
 	If BS=1, 32;
@@ -94,7 +94,7 @@ _start:
 	l.srli  r28,r26,7
 	l.ori   r30,r0,16
 	l.sll   r14,r30,r28
-	
+
 	/* Establish number of cache sets
 	r16 contains number of cache sets
 	r28 contains log(# of cache sets)
@@ -103,11 +103,11 @@ _start:
 	l.srli  r28,r26,3
 	l.ori   r30,r0,1
 	l.sll   r16,r30,r28
-	
+
 	/* Invalidate IC */
 	l.addi  r6,r0,0
 	l.sll   r5,r14,r28
-	
+
 .L7:
 	l.mtspr r0,r6,OR1K_SPR_ICACHE_ICBIR_ADDR
 	l.sfne  r6,r5
@@ -115,7 +115,7 @@ _start:
 	OR1K_INST(l.add   r6,r6,r14),
 	OR1K_INST(l.bf    .L7)
 	)
-	
+
 	/* Enable IC */
 	l.mfspr r6,r0,OR1K_SPR_SYS_SR_ADDR
 	l.ori   r6,r6,OR1K_SPR_SYS_SR_ICE_MASK
@@ -177,12 +177,12 @@ _start:
 .L10:
 	// Kick off test
 	OR1K_DELAYED_NOP(l.jal   _main)
-	
+
 
 
 /* =================================================== [ main ] === */
-	
-	.global _main	
+
+	.global _main
 _main:
 	l.movhi r3, 0
 	l.movhi r4, 0 // Bit we're checking works
@@ -192,9 +192,9 @@ _main:
 
 #define REPORT(reg)	l.or r3, reg, r0 ; \
 			l.nop 0x2
-	
-	
-ff1_loop:	
+
+
+ff1_loop:
 	// Set a loop going, creating a register with a '1' in a known position
 	// and checking the output of the l.ff1
 	l.ori 	r7, r0, 1 	// Put  1 in bit 0
@@ -260,19 +260,23 @@ ff1_error:
 	l.movhi r3, hi(0xbaaadff1)
 	l.ori	 r3, r3, lo(0xbaaadff1)
 	l.nop	0x1
-
+	l.nop
+	l.nop
 
 fl1_error:
 	l.movhi r3, hi(0xbaaadf11)
 	l.ori	r3, r3, lo(0xbaaadf11)
 	l.nop	0x1
-	
-	
+	l.nop
+	l.nop
+
 ffl1_ok:
-	
+
 	l.movhi r3, hi(0x8000000d)
 	l.ori	r3, r3, lo(0x8000000d)
 	l.nop 	0x2 /* Report */
 	l.ori 	r3, r0, 0 /* Return 0 */
 	l.nop 	0x1
-	
+	l.nop
+	l.nop
+
