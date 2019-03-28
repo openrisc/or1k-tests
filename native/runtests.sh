@@ -21,8 +21,10 @@
 #
 # ENVIRONMENT VARIABLES
 #
-# SIM_ARGS  arguments to send to fusesoc sim directly, i.e. --sim=verilator
-# CORE_ARGS arguments to send to mor1kx-generic, i.e. --pipeline CAPPUCCINO
+# TARGET      argument to specify which fusesoc target (test bench) to run,
+#             i.e. mor1kx_tb, marocchino_tb
+# TARGET_ARGS arguments to send to fusesoc target directly, i.e. --tool=verilator
+# CORE_ARGS   arguments to send to mor1kx-generic, i.e. --pipeline CAPPUCCINO
 # EXPECTED_FAILURES whitespace separated list of test cases that are expected
 # to fail.
 #
