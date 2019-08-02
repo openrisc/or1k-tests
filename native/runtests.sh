@@ -51,6 +51,24 @@ unexpected_pass_count=0
 PASS="\e[32mPASS\e[0m"
 FAIL="\e[31mFAIL\e[0m"
 
+TAP_REPORT_FILE=report.tap
+
+function initialize_tap_report {
+  touch $TAP_REPORT_FILE
+}
+
+function pass {
+  echo "ok $@" >> $TAP_REPORT_FILE
+}
+
+function fail {
+  echo "not ok $@" >> $TAP_REPORT_FILE
+}
+
+function end_tap_report {
+  echo "1..$1" >> $TAP_REPORT_FILE
+}
+
 if [ ! -d $DIR/build/or1k ] ; then
   echo "Cannot find any tests, did you build them?"
   exit 1
@@ -82,6 +100,8 @@ inthandler() {
 }
 trap inthandler SIGINT
 
+initialize_tap_report
+
 for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_name=`basename $test_path`
   test_path=`readlink -f $test_path`
@@ -100,21 +120,26 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
 
   if ! wait $timeout_pid ; then
     echo "TIME OUT"
+    fail $test_name "TIME OUT"
     ((timeout_count++))
   else
     if grep -q "exit(0x00000000)" $test_log ; then
       if [ "$EXPECTED_FAILURES" ] && [[ "$EXPECTED_FAILURES" =~ $expected_failure_pattern ]] ; then
         echo "UNEXPECTED PASS"
+        fail $test_name "UNEXPECTED PASS"
         ((unexpected_pass_count++))
       else
         echo -e "$PASS"
+        pass $test_name
       fi
     else
       if [ "$EXPECTED_FAILURES" ] && [[ "$EXPECTED_FAILURES" =~ $expected_failure_pattern ]] ; then
         echo -e "$FAIL"
+        fail $test_name
         ((expected_fail_count++))
       else
         echo "UNEXPECTED FAIL"
+        fail $test_name "UNEXPECTED FAIL"
         ((unexpected_fail_count++))
       fi
     fi
@@ -130,6 +155,8 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
 done
 
 # finish up
+
+end_tap_report $test_count
 
 printf "%-60sTotal: %3d\n"               "Results" $test_count
 printf "%-60sExpected Failures:   %3d\n" " "       $expected_fail_count
