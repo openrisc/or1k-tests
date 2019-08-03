@@ -135,7 +135,7 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
     else
       if [ "$EXPECTED_FAILURES" ] && [[ "$EXPECTED_FAILURES" =~ $expected_failure_pattern ]] ; then
         echo -e "$FAIL"
-        fail $test_name
+        pass $test_name
         ((expected_fail_count++))
       else
         echo "UNEXPECTED FAIL"
