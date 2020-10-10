@@ -1,6 +1,7 @@
 /* Test basic c functionality, and BSS section clearing.  */
-#include "cpu-utils.h"
-#include "lib-utils.h"
+//#include "cpu-utils.h"
+//#include "lib-utils.h"
+#include <stdlib.h>
 
 signed long test_cond(int i)
 {

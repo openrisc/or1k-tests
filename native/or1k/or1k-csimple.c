@@ -4,9 +4,8 @@
  * functions OK
  *
  */
- 
 
-#include "cpu-utils.h"
+#include "support.h"
 
 int main()
 {
