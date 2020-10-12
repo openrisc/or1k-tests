@@ -1,6 +1,6 @@
 CROSS_COMPILE?=or1k-elf-
 TARGET?=mor1kx_cappuccino
-CFLAGS?=-O2 -nostdlib
+CFLAGS=-Wall -O2
 AS = $(CROSS_COMPILE)as
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)gcc

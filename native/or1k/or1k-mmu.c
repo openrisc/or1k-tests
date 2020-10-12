@@ -40,13 +40,13 @@
 
 // The tests for translation setup address translation in the MMU from areas
 // in the 512kB - 1024kB region (64 sets in OR1200, 8kByte per set) to halfway
-// through RAM. Usually the sets taht would encompass the actual program are
+// through RAM. Usually the sets that would encompass the actual program are
 // skipped (TLB_TEXT_SET_NB) ie, we say how many sets encompass the program
 // text for itlb tests and only do tests above it (so, on sets 8-64, meaning
 // when we enable the iMMU and say have the execution bits disabled to force a
 // page fault the program gets to continue and is translated 1-1 while
 // accesses to the areas we are testing will cause a page fault) but it should
-//  still work to test all sets.
+// still work to test all sets.
 
 // In essense, the tests are aware that they could be operating out of the
 // same memory the tests are being performed in and takes care of this.
@@ -65,9 +65,6 @@
 #include "spr-defs.h"
 #include "board.h"
 
-// Uncomment the following to completely remove all printfs, or comment them
-// out to enable printf()s, but slows down RTL simulation a lot.
-
 #define ITLB_PR_NOLIMIT  (OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK | \
                           OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK)
 
@@ -77,28 +74,30 @@
                           OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK)
 
 // Define to run only tests on SHORT_TEST_NUM TLB sets
-#define SHORT_TEST
+//#define SHORT_TEST
 #define SHORT_TEST_NUM 4
 
 // Defines useful when wishing to skip instruction or data MMU tests when doing
 // development on one or the other.
 
-// Set this to 1 to enable the IMMU tests
-#define DO_IMMU_TESTS 1
-// Set this to 1 to enable the DMMU tests
-#define DO_DMMU_TESTS 1
-
 // Symbols defined in linker script
 extern unsigned long __executable_start;
 extern unsigned long _etext;
-extern unsigned long _edata;
+extern unsigned long _end;
 extern unsigned long _or1k_stack_bottom;
 extern unsigned long _or1k_board_mem_base;
 extern unsigned long _or1k_board_mem_size;
 
 unsigned long start_text_addr;
 unsigned long end_text_addr;
+unsigned long start_data_addr;
 unsigned long end_data_addr;
+unsigned long start_stack_addr;
+
+// Addresses that are translated 1-to-1
+inline int program_owned_addr(unsigned long addr) {
+  return (addr <= end_data_addr) || (addr >= start_stack_addr);
+}
 
 /* For shorter simulation run */
 #define RTL_SIM 1
@@ -111,31 +110,20 @@ will be used for testing */
 
 #define VM_BASE 0xc0000000
 
-// Pages to start tests at. This should correspond to where the stack is set.
-// We can set this by hand or figure it out at runtime.
-// Uncomment the following 3 lines to hard-set the bottom page to test at:
-//#define TLB_BOTTOM_TEST_PAGE_HARDSET
-//#define TLB_TEXT_SET_NB 16
-//#define TLB_DATA_SET_NB 16
-
-// Uncomment the following to determine the page to test from at run-time
+/* Text and data index bases for testing. */
 unsigned long TLB_TEXT_SET_NB;
 unsigned long TLB_DATA_SET_NB;
 
 /* MMU page size */
-#define PAGE_SIZE 8192
+#define PAGE_SHIFT      13
+#define PAGE_SIZE	8192
+#define PAGE_MASK       (~(PAGE_SIZE-1))
 
-/* Number of DTLB sets used (power of 2, max is 256) */
-#define DTLB_SETS 64
-
-/* Number of DTLB ways (1, 2, 3 etc., max is 4). */
-#define DTLB_WAYS 1
-
-/* Number of ITLB sets used (power of 2, max is 256) */
-#define ITLB_SETS 64
-
-/* Number of ITLB ways (1, 2, 3 etc., max is 4). */
-#define ITLB_WAYS 1
+/* Copied from linux kernel */
+#define PFN_ALIGN(x)    (((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
+#define PFN_UP(x)       (((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
+#define PFN_DOWN(x)     ((x) >> PAGE_SHIFT)
+#define PFN_PHYS(x)     ((phys_addr_t)(x) << PAGE_SHIFT)
 
 /* TLB mode codes */
 #define TLB_CODE_ONE_TO_ONE     0x00000000
@@ -144,8 +132,6 @@ unsigned long TLB_DATA_SET_NB;
 
 #define TLB_CODE_MASK   0xfffff000
 #define TLB_PR_MASK     0x00000fff
-
-
 
 /* fails if x is false */
 #define ASSERT(x) ((x)?1: fail (__FUNCTION__, __LINE__))
@@ -157,9 +143,6 @@ void immu_disable (void);
 // Machine code for l.jr r9 and then l.nop
 #define OR32_L_JR_R9 0x44004800
 #define OR32_L_NOP 0x15000000
-
-/* Global variables */
-extern unsigned long ram_end;
 
 /* DTLB mode status */
 volatile unsigned long dtlb_val;
@@ -191,14 +174,13 @@ unsigned long itlb_miss_ea;
 /* EA of last insn page fault exception */
 unsigned long ipage_fault_ea;
 
+unsigned long dtlb_sets;
+unsigned long dtlb_ways;
+unsigned long itlb_sets;
+unsigned long itlb_ways;
 
 #define sys_call() __asm__ __volatile__("l.sys\t0");
-/*
-void sys_call (void)
-{
-  asm("l.sys\t0");
-}
-*/
+
 void fail (char *func, int line)
 {
 #ifndef __FUNCTION__
@@ -206,14 +188,14 @@ void fail (char *func, int line)
 #endif
 
   /* Trigger sys call exception to enable supervisor mode again */
-  sys_call ();
+  sys_call();
 
   immu_disable ();
   dmmu_disable ();
 
   report(line);
-  report (0xeeeeeeee);
-  exit (1);
+  report(0xeeeeeeee);
+  exit(1);
 }
 
 void call(unsigned long add)
@@ -239,8 +221,15 @@ void copy_jump(unsigned long phy_add)
 void bus_err_handler (void)
 {
   /* This shouldn't happend */
-  printf("Test failed: Bus error\n");
+  puts("Test failed: Bus error");
   report (0xeeeeeeee);
+  exit (1);
+}
+
+void tick_timer_handler (void)
+{
+  puts("Tick from timer?");
+  or1k_timer_disable();
   exit (1);
 }
 
@@ -248,7 +237,7 @@ void bus_err_handler (void)
 void ill_insn_handler (void)
 {
   /* This shouldn't happend */
-  printf("Test failed: Illegal insn\n");
+  puts("Test failed: Illegal insn");
   report (0xeeeeeeee);
   exit (1);
 }
@@ -271,18 +260,16 @@ void dtlb_miss_handler (void)
   ea = mfspr (OR1K_SPR_SYS_EEAR_BASE);
 
   /* Find TLB set and LRU way */
-  set = (ea / PAGE_SIZE) % DTLB_SETS;
-  for (i = 0; i < DTLB_WAYS; i++) {
+  set = PFN_DOWN(ea);
+  for (i = 0; i < dtlb_ways; i++) {
     if ((mfspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set)) & OR1K_SPR_DMMU_DTLBW_MR_LRU_MASK) == 0) {
       way = i;
       break;
     }
   }
 
-  printf("dtlb miss ea = %.8lx set = %d way = %d\n", ea, set, way);
-
   // Anything under the stack belongs to the program, direct tranlsate it
-  if (ea < end_data_addr) {
+  if (program_owned_addr(ea)) {
     /* If this is acces to data of this program set one to one translation */
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(way, set), (ea & OR1K_SPR_DMMU_DTLBW_MR_VPN_MASK) | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(way, set), (ea & SPR_DTLBTR_PPN) | DTLB_PR_NOLIMIT);
@@ -296,7 +283,6 @@ void dtlb_miss_handler (void)
   // Everything gets translated back to the space halfway through RAM
   ta = (set*PAGE_SIZE) + RAM_START + (RAM_SIZE/2);
   tlbtr = (ta & SPR_DTLBTR_PPN) | (dtlb_val & TLB_PR_MASK);
-  printf("ta = %.8lx tlbtr = %.8lx dtlb_val = %.8lx\n",ta, tlbtr, dtlb_val);
 
   /* Set DTLB entry */
   mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(way, set), (ea & OR1K_SPR_DMMU_DTLBW_MR_VPN_MASK) | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
@@ -304,6 +290,9 @@ void dtlb_miss_handler (void)
 }
 
 /* Data page fault exception handler */
+/* When a page fault happens it means the TLB is setup for the EA, but
+   the permission flags are invalid for the given access.  This handler
+   simply grants permission and returns.  */
 void dpage_fault_handler (void)
 {
   unsigned long ea;
@@ -314,8 +303,8 @@ void dpage_fault_handler (void)
   ea = mfspr (OR1K_SPR_SYS_EEAR_BASE);
 
   /* Find TLB set and way */
-  set = (ea / PAGE_SIZE) % DTLB_SETS;
-  for (i = 0; i < DTLB_WAYS; i++) {
+  set = (ea / PAGE_SIZE) % dtlb_sets;
+  for (i = 0; i < dtlb_ways; i++) {
     if ((mfspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set)) & OR1K_SPR_DMMU_DTLBW_MR_VPN_MASK) ==
 	(ea & OR1K_SPR_DMMU_DTLBW_MR_VPN_MASK)) {
       way = i;
@@ -323,10 +312,7 @@ void dpage_fault_handler (void)
     }
   }
 
-  printf("ea = %.8lx set = %d way = %d\n", ea, set, way);
-
-  if (((RAM_START <= ea) & (ea < end_data_addr) ) |
-      ((start_text_addr <= ea) & (ea < end_text_addr))) {
+  if (program_owned_addr(ea)) {
     /* If this is acces to data of this program set one to one translation */
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(way, set), (ea & SPR_DTLBTR_PPN) | DTLB_PR_NOLIMIT);
     return;
@@ -353,17 +339,15 @@ void itlb_miss_handler (void)
   ea = mfspr (OR1K_SPR_SYS_EEAR_BASE);
 
   /* Find TLB set and LRU way */
-  set = (ea / PAGE_SIZE) % ITLB_SETS;
-  for (i = 0; i < ITLB_WAYS; i++) {
+  set = (ea / PAGE_SIZE) % itlb_sets;
+  for (i = 0; i < itlb_ways; i++) {
     if ((mfspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, set)) & OR1K_SPR_IMMU_ITLBW_MR_LRU_MASK) == 0) {
       way = i;
       break;
     }
   }
 
-  printf("itlb miss ea = %.8lx set = %d way = %d\n", ea, set, way);
-
-  if ((start_text_addr <= ea) && (ea < end_text_addr)) {
+  if (program_owned_addr(ea)) {
     /* If this is acces to data of this program set one to one translation */
     mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(way, set), (ea & OR1K_SPR_IMMU_ITLBW_MR_VPN_MASK) | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
     mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(way, set), (ea & SPR_ITLBTR_PPN) | ITLB_PR_NOLIMIT);
@@ -380,14 +364,15 @@ void itlb_miss_handler (void)
   ta = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
   tlbtr = (ta & SPR_ITLBTR_PPN) | (itlb_val & TLB_PR_MASK);
 
-  printf("ta = %.8lx\n", ta);
-
   /* Set ITLB entry */
   mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(way, set), (ea & OR1K_SPR_IMMU_ITLBW_MR_VPN_MASK) | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
   mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(way, set), tlbtr);
 }
 
 /* Intstruction page fault exception handler */
+/* When a page fault happens it means the TLB is setup for the EA, but
+   the permission flags are invalid for the given access.  This handler
+   simply grants permission and returns.  */
 void ipage_fault_handler (void)
 {
   unsigned long ea;
@@ -398,23 +383,19 @@ void ipage_fault_handler (void)
   ea = mfspr (OR1K_SPR_SYS_EEAR_BASE);
 
   /* Find TLB set and way */
-  set = (ea / PAGE_SIZE) % ITLB_SETS;
-  for (i = 0; i < ITLB_WAYS; i++) {
+  set = (ea / PAGE_SIZE) % itlb_sets;
+  for (i = 0; i < itlb_ways; i++) {
     if ((mfspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, set)) & OR1K_SPR_IMMU_ITLBW_MR_VPN_MASK) == (ea & OR1K_SPR_IMMU_ITLBW_MR_VPN_MASK)) {
       way = i;
       break;
     }
   }
 
-  printf("ipage fault: ea = %.8lx set = %d way = %d\n", ea, set, way);
-
-  if ((start_text_addr <= ea) && (ea < end_text_addr)) {
+  if (program_owned_addr(ea)) {
     /* If this is acces to data of this program set one to one translation */
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(way, set), (ea & SPR_DTLBTR_PPN) | ITLB_PR_NOLIMIT);
+    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(way, set), (ea & SPR_ITLBTR_PPN) | ITLB_PR_NOLIMIT);
     return;
   }
-
-  printf("ipage fault was outside of code area\n", ea, set, way);
 
   /* Update instruction page fault counter and EA */
   ipage_fault_count++;
@@ -427,32 +408,25 @@ void ipage_fault_handler (void)
 /* Invalidate all entries in DTLB and enable DMMU */
 void dmmu_enable (void)
 {
-#if DO_DMMU_TESTS==1
   /* Register DTLB miss handler */
   or1k_exception_handler_add (0x9, dtlb_miss_handler);
-  //excpt_dtlbmiss = (unsigned long)dtlb_miss_handler;
 
   /* Register data page fault handler */
   or1k_exception_handler_add (0x3, dpage_fault_handler);
-  //excpt_dpfault = (unsigned long)dpage_fault_handler;
 
   /* Enable DMMU */
   or1k_dmmu_enable ();
-#endif
 }
 
 /* Disable DMMU */
 void dmmu_disable (void)
 {
-#if DO_DMMU_TESTS==1
   or1k_dmmu_disable ();
-#endif
 }
 
 /* Invalidate all entries in ITLB and enable IMMU */
 void immu_enable (void)
 {
-#if DO_IMMU_TESTS==1
   /* Register ITLB miss handler */
   or1k_exception_handler_add (0xa, itlb_miss_handler);
   //excpt_itlbmiss = (unsigned long)itlb_miss_handler;
@@ -463,15 +437,12 @@ void immu_enable (void)
 
   /* Enable IMMU */
   or1k_immu_enable ();
-#endif
 }
 
 /* Disable IMMU */
 void immu_disable (void)
 {
-#if DO_IMMU_TESTS==1
   or1k_immu_disable ();
-#endif
 }
 
 void write_pattern(unsigned long start, unsigned long end)
@@ -499,17 +470,32 @@ int dtlb_translation_test (void)
   printf("dtlb translation test set\n");
 
   /* Invalidate all entries in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    for (j = 0; j < DTLB_SETS; j++) {
+  puts("Invalidating dtlb entries");
+  for (i = 0; i < dtlb_ways; i++) {
+    for (j = 0; j < dtlb_sets; j++) {
       mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
     }
   }
 
   /* Set one to one translation for program's data space */
-  for (i = 0; i < TLB_DATA_SET_NB; i++) {
+  printf("Setting program dtlb entries, ram_start:%lx, first_set:%ld, sets:%ld, ways:%ld\n",
+	RAM_START,
+	TLB_DATA_SET_NB,
+	dtlb_sets,
+	dtlb_ways);
+
+  for (i = PFN_DOWN(start_data_addr) % dtlb_sets; i < TLB_DATA_SET_NB; i++) {
     ea = RAM_START + (i*PAGE_SIZE);
     ta = RAM_START + (i*PAGE_SIZE);
+    printf ("dtlb data: %d : %lx\n", i, ea);
+    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, i), ta | (DTLB_PR_NOLIMIT));
+  }
+  for (i = PFN_DOWN(start_stack_addr) % dtlb_sets; i < (PFN_DOWN(RAM_SIZE) % dtlb_sets); i++) {
+    ea = RAM_START + (i*PAGE_SIZE);
+    ta = RAM_START + (i*PAGE_SIZE);
+    printf ("dtlb stack: %d : %lx\n", i, ea);
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, i), ta | (DTLB_PR_NOLIMIT));
   }
@@ -517,8 +503,10 @@ int dtlb_translation_test (void)
   /* Set dtlb permisions */
   dtlb_val = DTLB_PR_NOLIMIT;
 
+  puts("Setting up test dtlb entries");
+
   /* Write test pattern */
-  for (i = 0; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
     REG32(ea) = i;
     ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
@@ -526,18 +514,19 @@ int dtlb_translation_test (void)
   }
 
   /* Set one to one translation */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
     ta = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(DTLB_WAYS - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, i), ta | DTLB_PR_NOLIMIT);
+    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(dtlb_ways - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, i), ta | DTLB_PR_NOLIMIT);
   }
 
-  /* Enable DMMU */
+  puts("Enabling DMMU");
   dmmu_enable();
 
+puts("check 1");
   /* Check the pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
     ASSERT(REG32(ea) == i);
     ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
@@ -545,7 +534,7 @@ int dtlb_translation_test (void)
   }
 
   /* Write new pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
     REG32(ea) = 0xffffffff - i;
     ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
@@ -553,15 +542,16 @@ int dtlb_translation_test (void)
   }
 
   /* Set 0 -> RAM_START + (RAM_SIZE/2) translation */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = i*PAGE_SIZE;
     ta = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(DTLB_WAYS - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, i), ta | DTLB_PR_NOLIMIT);
+    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(dtlb_ways - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, i), ta | DTLB_PR_NOLIMIT);
   }
 
+puts("check 2");
   /* Check the pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = i*PAGE_SIZE;
     ASSERT(REG32(ea) == (0xffffffff - i));
     ea = ((i + 1)*PAGE_SIZE) - 4;
@@ -569,67 +559,68 @@ int dtlb_translation_test (void)
   }
 
   /* Write new pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     REG32(i*PAGE_SIZE) = i;
     REG32(((i + 1)*PAGE_SIZE) - 4) = 0xffffffff - i;
   }
 
   /* Set hi -> lo, lo -> hi translation */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    ta = RAM_START + (RAM_SIZE/2) + ((DTLB_SETS - i - 1 + TLB_DATA_SET_NB)*
+    ta = RAM_START + (RAM_SIZE/2) + ((dtlb_sets - i - 1 + TLB_DATA_SET_NB)*
 				     PAGE_SIZE);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(DTLB_WAYS - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, i), ta | DTLB_PR_NOLIMIT);
+    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(dtlb_ways - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, i), ta | DTLB_PR_NOLIMIT);
   }
 
+puts("check 3");
   /* Check the pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    ASSERT(REG32(ea) == (DTLB_SETS - i - 1 + TLB_DATA_SET_NB));
+    ASSERT(REG32(ea) == (dtlb_sets - i - 1 + TLB_DATA_SET_NB));
     ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
-    ASSERT(REG32(ea) == (0xffffffff - DTLB_SETS + i + 1 - TLB_DATA_SET_NB));
+    ASSERT(REG32(ea) == (0xffffffff - dtlb_sets + i + 1 - TLB_DATA_SET_NB));
   }
 
   /* Write new pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     REG32(RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE)) = 0xffffffff - i;
     REG32(RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4) = i;
   }
 
-  /* Disable DMMU */
   dmmu_disable();
+  puts("Disabled DMMU");
 
+  puts("check 4");
   /* Check the pattern */
-  for (i = TLB_DATA_SET_NB; i < DTLB_SETS; i++) {
+  for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    ASSERT(REG32(ea) == (0xffffffff - DTLB_SETS + i + 1 - TLB_DATA_SET_NB));
+    ASSERT(REG32(ea) == (0xffffffff - dtlb_sets + i + 1 - TLB_DATA_SET_NB));
     ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
-    ASSERT(REG32(ea) == (DTLB_SETS - i - 1 + TLB_DATA_SET_NB));
+    ASSERT(REG32(ea) == (dtlb_sets - i - 1 + TLB_DATA_SET_NB));
   }
 
-  printf("-------------------------------------------\n");
-
+  puts("done");
   return 0;
 }
 
 /* EA match register test
-Shifting one in DTLBMR and performing accesses to boundaries
-of the page, checking the triggering of exceptions */
+   Shifting one in DTLBMR and performing accesses to boundaries
+   of the page, checking the triggering of exceptions */
 int dtlb_match_test (int way, int set)
 {
   int i, j, tmp;
-  unsigned long add, t_add;
+  unsigned long add;
   unsigned long ea, ta;
 
   /* Disable DMMU */
   dmmu_disable();
 
-  printf("dtlb_match_test - way %d set %d\n",way, set);
+  printf("dtlb_match_test - way %d set %d\n", way, set);
 
   /* Invalidate all entries in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    for (j = 0; j < DTLB_SETS; j++) {
+  for (i = 0; i < dtlb_ways; i++) {
+    for (j = 0; j < dtlb_sets; j++) {
       mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
     }
@@ -646,7 +637,7 @@ int dtlb_match_test (int way, int set)
   /* Set dtlb permisions */
   dtlb_val = DTLB_PR_NOLIMIT;
 
-  // Setup match area address - based at halfway through RAM,
+  // Setup translate area (physical address) - based at halfway through RAM,
   // and then offset by the area encompassed by the set we wish to test.
   unsigned long translate_space = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
 
@@ -664,15 +655,11 @@ int dtlb_match_test (int way, int set)
   /* Enable DMMU */
   dmmu_enable();
 
-  /* Shifting one in DTLBMR */
-  i = 0;
+  // Setup match space (virtual address) - the address we will accesses, and
+  // have the translated into the translate space (physical) addresses
+  add = (PAGE_SIZE*dtlb_sets); // 8kB * 64, 512KB
+  unsigned long match_space = add + (set*PAGE_SIZE); // Virtual base + PAGE offset
 
-  // Setup match space - place we will do accesses to, and have them
-  // tranlsated into the translate space addresses
-  unsigned long match_space = (PAGE_SIZE*DTLB_SETS) + (set*PAGE_SIZE);  //
-
-  //add = (PAGE_SIZE*DTLB_SETS); // 8kB * 64, 512KB
-  //t_add = add + (set*PAGE_SIZE); //
   while (add != 0x00000000) {
     // Set MATCH register for the areas we will access explicitly, and validate it
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(way, set), match_space | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
@@ -683,38 +670,32 @@ int dtlb_match_test (int way, int set)
     dtlb_miss_count = 0;
     dtlb_miss_ea = 0;
 
-    //if (((match_space < RAM_START) || (t_add >= end_data_addr)) &&
-    //	((t_add < start_text_addr) || (t_add >= end_text_addr))) {
-    if (match_space > end_data_addr){
+    /* Read last address of previous page */
+    tmp = REG32(match_space - 4);
+    ASSERT(tmp == 0x00112233);
+    ASSERT(dtlb_miss_count == 1);
 
-      /* Read last address of previous page */
-      tmp = REG32(match_space - 4);
-      ASSERT(tmp == 0x00112233);
-      ASSERT(dtlb_miss_count == 1);
+    /* Read first address of the page */
+    tmp = REG32(match_space);
+    ASSERT(tmp == 0x44556677);
+    ASSERT(dtlb_miss_count == 1);
 
-      /* Read first address of the page */
-      tmp = REG32(match_space);
-      ASSERT(tmp == 0x44556677);
-      ASSERT(dtlb_miss_count == 1);
+    /* Read last address of the page */
+    tmp = REG32(match_space + PAGE_SIZE - 4);
+    ASSERT(tmp == 0x8899aabb);
+    ASSERT(dtlb_miss_count == 1);
 
-      /* Read last address of the page */
-      tmp = REG32(match_space + PAGE_SIZE - 4);
-      ASSERT(tmp == 0x8899aabb);
-      ASSERT(dtlb_miss_count == 1);
+    /* Read first address of next page */
+    tmp = REG32(match_space + PAGE_SIZE);
+    ASSERT(tmp == 0xccddeeff);
+    ASSERT(dtlb_miss_count == 2);
 
-      /* Read first address of next page */
-      tmp = REG32(match_space + PAGE_SIZE);
-      ASSERT(tmp == 0xccddeeff);
-      ASSERT(dtlb_miss_count == 2);
-    }
-
-    i++;
-    add = (PAGE_SIZE*DTLB_SETS) << i;
+    add = add << 1;
     match_space = add + (set*PAGE_SIZE);
 
-    for (j = 0; j < DTLB_WAYS; j++) {
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(j, ((set - 1) & (DTLB_SETS - 1))), 0);
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(j, ((set + 1) & (DTLB_SETS - 1))), 0);
+    for (j = 0; j < dtlb_ways; j++) {
+      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(j, ((set - 1) & (dtlb_sets - 1))), 0);
+      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(j, ((set + 1) & (dtlb_sets - 1))), 0);
     }
   }
 
@@ -741,8 +722,8 @@ int dtlb_valid_bit_test (int set)
   printf("dtlb_valid_bit_test, set %d\n", set);
 
   /* Invalidate all entries in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    for (j = 0; j < DTLB_SETS; j++) {
+  for (i = 0; i < dtlb_ways; i++) {
+    for (j = 0; j < dtlb_sets; j++) {
       mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
     }
@@ -764,7 +745,7 @@ int dtlb_valid_bit_test (int set)
   dtlb_val = DTLB_PR_NOLIMIT;
 
   /* Resetv DTLBMR for every way */
-  for (i = 0; i < DTLB_WAYS; i++) {
+  for (i = 0; i < dtlb_ways; i++) {
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set), 0);
   }
 
@@ -772,12 +753,12 @@ int dtlb_valid_bit_test (int set)
   dmmu_enable();
 
   /* Perform writes to address, that is not in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    REG32(RAM_START + RAM_SIZE + (i*DTLB_SETS*PAGE_SIZE) + (set*PAGE_SIZE)) = i;
+  for (i = 0; i < dtlb_ways; i++) {
+    REG32(RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)) = i;
 
     /* Check if there was DTLB miss */
     ASSERT(dtlb_miss_count == (i + 1));
-    ASSERT(dtlb_miss_ea == (RAM_START + RAM_SIZE + (i*DTLB_SETS*PAGE_SIZE) + (set*PAGE_SIZE)));
+    ASSERT(dtlb_miss_ea == (RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)));
   }
 
   /* Reset DTLB miss counter and EA */
@@ -785,25 +766,25 @@ int dtlb_valid_bit_test (int set)
   dtlb_miss_ea = 0;
 
   /* Perform reads to address, that is now in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    ASSERT(REG32(RAM_START + RAM_SIZE + (i*DTLB_SETS*PAGE_SIZE) + (set*PAGE_SIZE)) == i);
+  for (i = 0; i < dtlb_ways; i++) {
+    ASSERT(REG32(RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)) == i);
 
     /* Check if there was DTLB miss */
     ASSERT(dtlb_miss_count == 0);
   }
 
   /* Reset valid bits */
-  for (i = 0; i < DTLB_WAYS; i++) {
+  for (i = 0; i < dtlb_ways; i++) {
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set), mfspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set)) & ~OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
   }
 
   /* Perform reads to address, that is now in DTLB but is invalid */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    ASSERT(REG32(RAM_START + RAM_SIZE + (i*DTLB_SETS*PAGE_SIZE) + (set*PAGE_SIZE)) == i);
+  for (i = 0; i < dtlb_ways; i++) {
+    ASSERT(REG32(RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)) == i);
 
     /* Check if there was DTLB miss */
     ASSERT(dtlb_miss_count == (i + 1));
-    ASSERT(dtlb_miss_ea == (RAM_START + RAM_SIZE + (i*DTLB_SETS*PAGE_SIZE) + (set*PAGE_SIZE)));
+    ASSERT(dtlb_miss_ea == (RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)));
   }
 
   /* Disable DMMU */
@@ -829,8 +810,8 @@ int dtlb_permission_test (int set)
   dmmu_disable();
 
   /* Invalidate all entries in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    for (j = 0; j < DTLB_SETS; j++) {
+  for (i = 0; i < dtlb_ways; i++) {
+    for (j = 0; j < dtlb_sets; j++) {
       mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
     }
@@ -848,7 +829,7 @@ int dtlb_permission_test (int set)
   ea = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
 
   /* Set match register */
-  mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(DTLB_WAYS - 1, set), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+  mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(dtlb_ways - 1, set), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
 
   /* Reset page fault counter and EA */
   dpage_fault_count = 0;
@@ -859,7 +840,7 @@ int dtlb_permission_test (int set)
 
   /* Write supervisor */
   dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK));
+  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK));
   REG32(RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE) + 0) = 0x00112233;
   ASSERT(dpage_fault_count == 1);
   REG32(RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE) + 4) = 0x44556677;
@@ -871,7 +852,7 @@ int dtlb_permission_test (int set)
 
   /* Read supervisor */
   dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK));
+  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK));
   tmp = REG32(RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE) + 0);
   ASSERT(dpage_fault_count == 2);
   ASSERT(tmp == 0x00112233);
@@ -887,7 +868,7 @@ int dtlb_permission_test (int set)
 
   /* Write user */
   dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK));
+  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK));
 
   /* Set user mode */
   mtspr (OR1K_SPR_SYS_SR_ADDR, mfspr (OR1K_SPR_SYS_SR_ADDR) & ~OR1K_SPR_SYS_SR_SM_MASK);
@@ -906,7 +887,7 @@ int dtlb_permission_test (int set)
 
   /* Read user mode */
   dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_URE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(DTLB_WAYS - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_URE_MASK));
+  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_URE_MASK));
 
   /* Set user mode */
   mtspr (OR1K_SPR_SYS_SR_ADDR, mfspr (OR1K_SPR_SYS_SR_ADDR) & ~OR1K_SPR_SYS_SR_SM_MASK);
@@ -945,8 +926,8 @@ int dtlb_dcache_test (int set)
   unsigned long ea, ta, vmea;
   unsigned long testwrite_to_be_cached, testwrite_not_to_be_cached;
 
-  // This test can't be run if set==DTLB_SETS-1
-  if (set==(DTLB_SETS-1))
+  // This test can't be run if set==dtlb_sets-1
+  if (set==(dtlb_sets-1))
     return 0;
 
   // Check data cache is present and enabled
@@ -962,8 +943,8 @@ int dtlb_dcache_test (int set)
   dmmu_disable();
 
   /* Invalidate all entries in DTLB */
-  for (i = 0; i < DTLB_WAYS; i++) {
-    for (j = 0; j < DTLB_SETS; j++) {
+  for (i = 0; i < dtlb_ways; i++) {
+    for (j = 0; j < dtlb_sets; j++) {
       mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
     }
@@ -987,7 +968,7 @@ int dtlb_dcache_test (int set)
   ta = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
 
   /* Set a virtual address to translate via last TLB cache set */
-  vmea = VM_BASE + RAM_START + (RAM_SIZE/2) + ((DTLB_SETS-1)*PAGE_SIZE);
+  vmea = VM_BASE + RAM_START + (RAM_SIZE/2) + ((dtlb_sets-1)*PAGE_SIZE);
 
   // Set a 1-1 translation for this page without cache inhibited
   /* Set match register */
@@ -999,9 +980,9 @@ int dtlb_dcache_test (int set)
      using the last set */
 
   /* Set match register */
-  mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, (DTLB_SETS-1)), vmea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+  mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, (dtlb_sets-1)), vmea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
   /* Set translate register */
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, (DTLB_SETS-1)), ta | DTLB_PR_NOLIMIT |
+  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, (dtlb_sets-1)), ta | DTLB_PR_NOLIMIT |
 	 SPR_DTLBTR_CI);
 
   /* Invalidate this location in cache, to force reload when we read */
@@ -1059,8 +1040,8 @@ int itlb_translation_test (void)
   immu_disable();
 
   /* Invalidate all entries in DTLB */
-  for (i = 0; i < ITLB_WAYS; i++) {
-    for (j = 0; j < ITLB_SETS; j++) {
+  for (i = 0; i < itlb_ways; i++) {
+    for (j = 0; j < itlb_sets; j++) {
       mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(i, j), 0);
     }
@@ -1079,7 +1060,7 @@ int itlb_translation_test (void)
 
 
   /* Write test program */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_SETS; i++) {
+  for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
     translate_space = (RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE) + (i*0x10));
     //printf("writing app to 0x%.8lx to be translated in set %d\n",translate_space, i);
     REG32(translate_space) = OR32_L_JR_R9;
@@ -1091,10 +1072,10 @@ int itlb_translation_test (void)
   }
 
   /* Set one to one translation of the last way of ITLB */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_SETS; i++) {
+  for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
     translate_space = (RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE) + (i*0x10));
-    mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(ITLB_WAYS - 1, i), translate_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(ITLB_WAYS - 1, i),
+    mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(itlb_ways - 1, i), translate_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, i),
 	   translate_space | ITLB_PR_NOLIMIT);
   }
 
@@ -1102,26 +1083,26 @@ int itlb_translation_test (void)
   immu_enable();
 
   /* Check the tranlsation works by jumping there */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_SETS; i++) {
+  for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
     translate_space = (RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE) + (i*0x10));
     //printf("calling 0x%.8lx - should use set %d\n",translate_space, i);
     call (translate_space);
   }
 
   /* Set hi -> lo, lo -> hi translation */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_SETS; i++) {
+  for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
     match_space = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
     translate_space = RAM_START + (RAM_SIZE/2) +
-      (((ITLB_SETS-1)+TLB_TEXT_SET_NB - i)*PAGE_SIZE);
+      (((itlb_sets-1)+TLB_TEXT_SET_NB - i)*PAGE_SIZE);
     printf("setting itlb set %d match -> trans = 0x%.8lx -> 0x%.8lx\n",
 	   i, match_space, translate_space);
-    mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(ITLB_WAYS - 1, i), match_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(ITLB_WAYS - 1, i), translate_space|ITLB_PR_NOLIMIT);
+    mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(itlb_ways - 1, i), match_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, i), translate_space|ITLB_PR_NOLIMIT);
   }
 
   /* Check the pattern */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_SETS; i++) {
-    match_space = RAM_START + (RAM_SIZE/2) + (((ITLB_SETS-1)+TLB_TEXT_SET_NB - i)*PAGE_SIZE) + (i*0x10);
+  for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
+    match_space = RAM_START + (RAM_SIZE/2) + (((itlb_sets-1)+TLB_TEXT_SET_NB - i)*PAGE_SIZE) + (i*0x10);
     printf("immu hi->lo check - calling 0x%.8lx\n",match_space);
     call(match_space);
   }
@@ -1130,7 +1111,7 @@ int itlb_translation_test (void)
   immu_disable ();
 
   /* Check the pattern */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_SETS; i++) {
+  for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
     translate_space = (RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE) + (i*0x10));
     //call (RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE) + (i*0x10));
     //printf("immu disabled check of set %d - calling 0x%.8lx\n",i, translate_space);
@@ -1148,7 +1129,7 @@ of the page, checking the triggering of exceptions */
 int itlb_match_test (int way, int set)
 {
   int i, j;
-  unsigned long add, t_add;
+  unsigned long add;
   unsigned long ea, ta;
 
   printf("itlb_match_test\n");
@@ -1157,8 +1138,8 @@ int itlb_match_test (int way, int set)
   immu_disable();
 
   /* Invalidate all entries in ITLB */
-  for (i = 0; i < ITLB_WAYS; i++) {
-    for (j = 0; j < ITLB_SETS; j++) {
+  for (i = 0; i < itlb_ways; i++) {
+    for (j = 0; j < itlb_sets; j++) {
       mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(i, j), 0);
     }
@@ -1203,11 +1184,10 @@ int itlb_match_test (int way, int set)
   immu_enable();
 
   /* Shifting one in ITLBMR */
-  i = 0;
-  //add = (PAGE_SIZE*ITLB_SETS);
-  //t_add = add + (set*PAGE_SIZE);
+  add = (PAGE_SIZE*itlb_sets);
   // Space we'll access and expect the MMU to translate our requests
-  unsigned long match_space = (PAGE_SIZE*DTLB_SETS) + (set*PAGE_SIZE);
+  unsigned long match_space = (PAGE_SIZE*dtlb_sets) + (set*PAGE_SIZE);
+
   while (add != 0x00000000) {
     mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(way, set),  match_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
     mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(way, set),  translate_space | ITLB_PR_NOLIMIT);
@@ -1216,32 +1196,28 @@ int itlb_match_test (int way, int set)
     itlb_miss_count = 0;
     itlb_miss_ea = 0;
 
-    //if (((t_add < RAM_START) || (t_add >= end_data_addr)) && ((t_add < start_text_addr) || (t_add >= end_text_addr))) {
+    /* Jump on last address of previous page */
+    call (match_space - 8);
+    ASSERT(itlb_miss_count == 1);
 
-      /* Jump on last address of previous page */
-      call (match_space - 8);
-      ASSERT(itlb_miss_count == 1);
+    /* Jump on first address of the page */
+    call (match_space);
+    ASSERT(itlb_miss_count == 1);
 
-      /* Jump on first address of the page */
-      call (match_space);
-      ASSERT(itlb_miss_count == 1);
+    /* Jump on last address of the page */
+    call (match_space + PAGE_SIZE - 8);
+    ASSERT(itlb_miss_count == 1);
 
-      /* Jump on last address of the page */
-      call (match_space + PAGE_SIZE - 8);
-      ASSERT(itlb_miss_count == 1);
+    /* Jump on first address of next page */
+    call (match_space + PAGE_SIZE);
+    ASSERT(itlb_miss_count == 2);
 
-      /* Jump on first address of next page */
-      call (match_space + PAGE_SIZE);
-      ASSERT(itlb_miss_count == 2);
-      //}
-
-    i++;
-    add = (PAGE_SIZE*ITLB_SETS) << i;
+    add = add << 1;
     match_space = add + (set*PAGE_SIZE);
 
-    for (j = 0; j < ITLB_WAYS; j++) {
-      mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(j, ((set - 1) & (ITLB_SETS - 1))), 0);
-      mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(j, ((set + 1) & (ITLB_SETS - 1))), 0);
+    for (j = 0; j < itlb_ways; j++) {
+      mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(j, ((set - 1) & (itlb_sets - 1))), 0);
+      mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(j, ((set + 1) & (itlb_sets - 1))), 0);
     }
   }
 
@@ -1268,8 +1244,8 @@ int itlb_valid_bit_test (int set)
   immu_disable();
 
   /* Invalidate all entries in ITLB */
-  for (i = 0; i < ITLB_WAYS; i++) {
-    for (j = 0; j < ITLB_SETS; j++) {
+  for (i = 0; i < itlb_ways; i++) {
+    for (j = 0; j < itlb_sets; j++) {
       mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(i, j), 0);
     }
@@ -1291,14 +1267,14 @@ int itlb_valid_bit_test (int set)
   itlb_val = ITLB_PR_NOLIMIT;
 
   /* Resetv ITLBMR for every way after the program code */
-  for (i = TLB_TEXT_SET_NB; i < ITLB_WAYS; i++) {
+  for (i = TLB_TEXT_SET_NB; i < itlb_ways; i++) {
     mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, set), 0);
   }
 
   /* Enable IMMU */
   immu_enable();
   // Address we'll jump to and expect it to be translated
-  unsigned long match_space = (PAGE_SIZE*ITLB_SETS) + (set*PAGE_SIZE);
+  unsigned long match_space = (PAGE_SIZE*itlb_sets) + (set*PAGE_SIZE);
   // Address that we will actually access
   unsigned long translate_space = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
   /* Perform jumps to address, that is not in ITLB */
@@ -1325,7 +1301,7 @@ int itlb_valid_bit_test (int set)
   ASSERT(itlb_miss_count == 0);
 
   /* Reset valid bits */
-  for (i = 0; i < ITLB_WAYS; i++) {
+  for (i = 0; i < itlb_ways; i++) {
     mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, set), mfspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, set)) & ~OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
   }
   printf("jumping to 0x%.8lx again - mmu entries invalidated, so should be a miss\n", match_space);
@@ -1359,8 +1335,8 @@ int itlb_permission_test (int set)
   immu_disable();
 
   /* Invalidate all entries in ITLB */
-  for (i = 0; i < ITLB_WAYS; i++) {
-    for (j = 0; j < ITLB_SETS; j++) {
+  for (i = 0; i < itlb_ways; i++) {
+    for (j = 0; j < itlb_sets; j++) {
       mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(i, j), 0);
       mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(i, j), 0);
     }
@@ -1378,7 +1354,7 @@ int itlb_permission_test (int set)
   unsigned long match_space = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
 
   /* Set match register */
-  mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(ITLB_WAYS - 1, set), match_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
+  mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(itlb_ways - 1, set), match_space | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
 
   /* Reset page fault counter and EA */
   ipage_fault_count = 0;
@@ -1400,7 +1376,7 @@ int itlb_permission_test (int set)
   /* Execute supervisor */
   printf("execute disable for supervisor - should cause ipage fault\n");
   itlb_val = SPR_ITLBTR_CI | OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK;
-  mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(ITLB_WAYS - 1, set), match_space | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK));
+  mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), match_space | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK));
   printf("calling address 0x%.8lx\n", match_space);
   call (match_space);
   ASSERT(ipage_fault_count == 1);
@@ -1410,7 +1386,7 @@ int itlb_permission_test (int set)
   /* Execute user */
   printf("execute disable for user - should cause ipage fault\n");
   itlb_val = SPR_ITLBTR_CI | OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK;
-  mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(ITLB_WAYS - 1, set), match_space | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK));
+  mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), match_space | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK));
 
   /* Set user mode */
   printf("disabling supervisor mode\n");
@@ -1439,122 +1415,92 @@ int main (void)
 
   start_text_addr = (unsigned long)&__executable_start;
   end_text_addr = (unsigned long)&_etext;
-  end_data_addr = (unsigned long)&_or1k_stack_bottom;
-  end_data_addr += 4;
+  start_data_addr = (unsigned long)&_etext;
+  end_data_addr = (unsigned long)&_end;
+  start_stack_addr = _or1k_stack_bottom;
 
-  printf ("start_text_addr: %x, end_text_addr: %x, end_data_addr: %x, ram_size: %x\n",
+  printf ("start_text_addr: %lx, end_text_addr: %lx, end_data_addr: %lx, ram_size: %lx\n",
 		start_text_addr,
 		end_text_addr,
 		end_data_addr,
 		RAM_SIZE);
 
-#ifndef TLB_BOTTOM_TEST_PAGE_HARDSET
   /* Set the botom MMU page (and thus TLB set) we'll begin tests at, hopefully
      avoiding pages with program text, data and stack. Determined by
      determining page after one top of stack is on. */
-  TLB_TEXT_SET_NB =  TLB_DATA_SET_NB = (end_data_addr+PAGE_SIZE) / PAGE_SIZE;
-#endif
+  TLB_DATA_SET_NB = TLB_TEXT_SET_NB = PFN_UP(end_data_addr);
 
-#ifdef _UART_H_
-  uart_init(DEFAULT_UART);
-#endif
+  dtlb_sets = (1 << ((mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTS) >>
+                            SPR_DMMUCFGR_NTS_OFF));
+  itlb_sets = (1 << ((mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTS) >>
+                            SPR_IMMUCFGR_NTS_OFF));
+
+  dtlb_ways = (1 + (mfspr(SPR_DMMUCFGR) & SPR_DMMUCFGR_NTW));
+  itlb_ways = (1 + (mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTW));
 
   i = j = 0; /* Get rid of warnings */
-
   /* Register bus error handler */
   or1k_exception_handler_add (0x2, bus_err_handler);
+
+  /* Register timer handler */
+  or1k_exception_handler_add (0x5, tick_timer_handler);
 
   /* Register illegal insn handler */
   or1k_exception_handler_add (0x7, ill_insn_handler);
 
   /* Register sys call handler */
   or1k_exception_handler_add (0xc, sys_call_handler);
-  // Skip all DTLB tests for now while we tweak itlb ones...
 
-#if DO_DMMU_TESTS==1
+#ifdef SHORT_TEST
+  puts("Running short tlb set tests");
+  dtlb_sets = itlb_sets = TLB_DATA_SET_NB + SHORT_TEST_NUM;
+#else
+  puts("Running full tlb set tests");
+#endif
 
   /* Translation test */
   dtlb_translation_test ();
 
   /* Virtual address match test */
-  for (j = 0; j < DTLB_WAYS; j++) {
-#ifdef SHORT_TEST
-    for (i = TLB_DATA_SET_NB; i < (TLB_DATA_SET_NB + SHORT_TEST_NUM - 1); i++)
-#else
-    for (i = TLB_DATA_SET_NB; i < (DTLB_SETS - 1); i++)
-#endif
+  for (j = 0; j < dtlb_ways; j++) {
+    for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 1); i++)
       dtlb_match_test (j, i);
   }
 
   /* Valid bit testing */
-
-#ifdef SHORT_TEST
-  for (i = TLB_DATA_SET_NB; i < (TLB_DATA_SET_NB + SHORT_TEST_NUM - 1); i++)
-#else
-  for (i = TLB_DATA_SET_NB; i < (DTLB_SETS - 1); i++)
-#endif
-      dtlb_valid_bit_test (i);
+  for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 1); i++)
+    dtlb_valid_bit_test (i);
 
   /* Permission test */
-#ifdef SHORT_TEST
-  for (i = TLB_DATA_SET_NB; i < (TLB_DATA_SET_NB + SHORT_TEST_NUM - 1); i++)
-#else
-  for (i = TLB_DATA_SET_NB; i < (DTLB_SETS - 1); i++)
-#endif
+  for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 1); i++)
     dtlb_permission_test (i);
 
   /* Data cache test */
 
 #ifndef OR1200_NO_DC
-#ifdef SHORT_TEST
-  for (i = TLB_DATA_SET_NB; i < (TLB_DATA_SET_NB + SHORT_TEST_NUM - 1); i++)
-#else
-  for (i = TLB_DATA_SET_NB; i < (DTLB_SETS - 2); i++)
-#endif
+  for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 2); i++)
     dtlb_dcache_test (i);
 #endif // ifndef OR1200_NO_DC
-
-
-#endif
-
-#if DO_IMMU_TESTS==1
 
   /* Translation test */
   itlb_translation_test ();
 
   /* Virtual address match test */
 
-  for (j = 0; j < DTLB_WAYS; j++) {
-#ifdef SHORT_TEST
-  for (i = TLB_DATA_SET_NB + 1; i < (TLB_DATA_SET_NB + SHORT_TEST_NUM - 1); i++)
-#else
-  for (i = TLB_DATA_SET_NB + 1; i < (ITLB_SETS - 1); i++)
-#endif
+  for (j = 0; j < dtlb_ways; j++) {
+    for (i = TLB_DATA_SET_NB + 1; i < (itlb_sets - 1); i++)
       itlb_match_test (j, i);
   }
 
   /* Valid bit testing */
-#ifdef SHORT_TEST
-  for (i = TLB_DATA_SET_NB; i < (TLB_DATA_SET_NB + SHORT_TEST_NUM - 1); i++)
-#else
-  for (i = TLB_DATA_SET_NB; i < (ITLB_SETS - 1); i++)
-#endif
+  for (i = TLB_DATA_SET_NB; i < (itlb_sets - 1); i++)
     itlb_valid_bit_test (i);
 
-
-
   /* Permission test */
-#ifdef SHORT_TEST
-  for (i = TLB_TEXT_SET_NB; i < (TLB_TEXT_SET_NB + SHORT_TEST_NUM); i++)
-#else
-  for (i = TLB_TEXT_SET_NB; i < (ITLB_SETS - 1); i++)
-#endif
+  for (i = TLB_TEXT_SET_NB; i < (itlb_sets - 1); i++)
     itlb_permission_test (i);
 
-#endif
-
-  printf("Tests completed\n");
-  report (0xdeaddead);
+  puts("Tests completed");
   report (0x8000000d);
   exit (0);
 }
