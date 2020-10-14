@@ -74,7 +74,7 @@
                           OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK)
 
 // Define to run only tests on SHORT_TEST_NUM TLB sets
-//#define SHORT_TEST
+#define SHORT_TEST
 #define SHORT_TEST_NUM 4
 
 // Defines useful when wishing to skip instruction or data MMU tests when doing
@@ -471,24 +471,14 @@ void write_pattern(unsigned long start, unsigned long end)
 
 }
 
-/* Translation address register test
-Set various translation and check the pattern */
-int dtlb_translation_test (void)
+/* Setup program, data and stack memory in the DTLB and ITLB,
+   This is not strickly needed as tlb misses will set these up
+   for us but it helps to test setting these up outside the tlb
+   handler.  */
+void tlb_map_program_memory()
 {
   int i, j;
   unsigned long ea, ta;
-
-  /* Disable DMMU */
-  dmmu_disable();
-
-  puts("dtlb translation test set");
-
-  /* Set one to one translation for program's data space */
-  printf("Setting program dtlb entries, ram_start:%lx, first_set:%ld, sets:%ld, ways:%ld\n",
-	RAM_START,
-	TLB_DATA_SET_NB,
-	dtlb_sets,
-	dtlb_ways);
 
   /* Invalidate all entries in DTLB */
   for (i = 0; i < dtlb_ways; i++) {
@@ -515,6 +505,28 @@ int dtlb_translation_test (void)
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, set), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, set), ta | (DTLB_PR_NOLIMIT));
   }
+}
+
+/* Translation address register test
+Set various translation and check the pattern */
+int dtlb_translation_test (void)
+{
+  int i;
+  unsigned long ea, ta;
+
+  /* Disable DMMU */
+  dmmu_disable();
+
+  puts("dtlb translation test set");
+
+  /* Set one to one translation for program's data space */
+  printf("Setting program dtlb entries, ram_start:%lx, first_set:%ld, sets:%ld, ways:%ld\n",
+	RAM_START,
+	TLB_DATA_SET_NB,
+	dtlb_sets,
+	dtlb_ways);
+
+  tlb_map_program_memory();
 
   /* Set dtlb miss handler default permisions and set translation */
   dtlb_val = DTLB_PR_NOLIMIT;
@@ -630,7 +642,7 @@ int dtlb_translation_test (void)
 
   dtlb_set_translate = &dtlb_default_set_translate;
 
-  puts("done");
+  puts("-------------------------------------------");
   return 0;
 }
 
@@ -639,33 +651,19 @@ int dtlb_translation_test (void)
    of the page, checking the triggering of exceptions */
 int dtlb_match_test (int way, int set)
 {
-  int i, j, tmp;
+  int i, tmp;
   unsigned long add;
-  unsigned long ea, ta;
 
   /* Disable DMMU */
   dmmu_disable();
 
   printf("dtlb_match_test - way %d set %d\n", way, set);
 
-  /* Invalidate all entries in DTLB */
-  for (i = 0; i < dtlb_ways; i++) {
-    for (j = 0; j < dtlb_sets; j++) {
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
-      mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
-    }
-  }
+  tlb_map_program_memory();
 
-  // Program text/data pages should be 1-1 translation
-  for (i = 0; i < TLB_DATA_SET_NB; i++) {
-    ea = RAM_START + (i*PAGE_SIZE);
-    ta = RAM_START + (i*PAGE_SIZE);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, i), ta | DTLB_PR_NOLIMIT);
-  }
-
-  /* Set dtlb permisions */
+  /* Set dtlb permisions and set translation used in tlb miss handler */
   dtlb_val = DTLB_PR_NOLIMIT;
+  dtlb_set_translate = &dtlb_default_set_translate;
 
   // Setup translate area (physical address) - based at halfway through RAM,
   // and then offset by the area encompassed by the set we wish to test.
@@ -674,16 +672,12 @@ int dtlb_match_test (int way, int set)
   /* Set pattern */
   // Last word of page before the one covered by this set
   REG32(translate_space - 4) = 0x00112233;
-  //printf("pattern0 @ 0x%.8lx = 0x%.8lx\n", translate_space-4, REG32(translate_space - 4) );
   // First word of page covered by this set
   REG32(translate_space) = 0x44556677;
   // Last word of page covered by this set
   REG32(translate_space + PAGE_SIZE - 4) = 0x8899aabb;
   // First word of page covered by next set
   REG32(translate_space + PAGE_SIZE) = 0xccddeeff;
-
-  /* Enable DMMU */
-  dmmu_enable();
 
   // Setup match space (virtual address) - the address we will accesses, and
   // have the translated into the translate space (physical) addresses
@@ -702,6 +696,9 @@ int dtlb_match_test (int way, int set)
 
     /* Do our testing as long we don't overlap with our physical 1-to-1 space */
     if (!program_owned_addr(match_space)) {
+      /* Enable DMMU */
+      dmmu_enable();
+
       /* Read last address of previous page */
       tmp = REG32(match_space - 4);
       ASSERT(tmp == 0x00112233);
@@ -721,21 +718,21 @@ int dtlb_match_test (int way, int set)
       tmp = REG32(match_space + PAGE_SIZE);
       ASSERT(tmp == 0xccddeeff);
       ASSERT(dtlb_miss_count == 2);
+
+      /* Disable DMMU */
+      dmmu_disable();
     }
 
     add = add << 1;
     match_space = add + (set*PAGE_SIZE);
 
-    for (j = 0; j < dtlb_ways; j++) {
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(j, ((set - 1) & (dtlb_sets - 1))), 0);
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(j, ((set + 1) & (dtlb_sets - 1))), 0);
+    for (i = 0; i < dtlb_ways; i++) {
+      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, ((set - 1) & (dtlb_sets - 1))), 0);
+      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, ((set + 1) & (dtlb_sets - 1))), 0);
     }
   }
 
-  /* Disable DMMU */
-  dmmu_disable();
-
-  printf("-------------------------------------------\n");
+  puts("-------------------------------------------");
 
   return 0;
 }
@@ -1447,7 +1444,7 @@ int itlb_permission_test (int set)
 
 int main (void)
 {
-  int i, j;
+  int i, j, test_dtlb_sets, test_itlb_sets;
 
   start_text_addr = (unsigned long)&__executable_start;
   end_text_addr = (unsigned long)&_etext;
@@ -1489,9 +1486,11 @@ int main (void)
 
 #ifdef SHORT_TEST
   puts("Running short tlb set tests");
-  dtlb_sets = itlb_sets = TLB_DATA_SET_NB + SHORT_TEST_NUM;
+  test_dtlb_sets = test_itlb_sets = TLB_DATA_SET_NB + SHORT_TEST_NUM;
 #else
   puts("Running full tlb set tests");
+  test_dtlb_sets = dtlb_sets;
+  test_itlb_sets = itlb_sets;
 #endif
 
   /* Translation test */
@@ -1499,22 +1498,22 @@ int main (void)
 
   /* Virtual address match test */
   for (j = 0; j < dtlb_ways; j++) {
-    for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 1); i++)
+    for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 1); i++)
       dtlb_match_test (j, i);
   }
 
   /* Valid bit testing */
-  for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 1); i++)
+  for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 1); i++)
     dtlb_valid_bit_test (i);
 
   /* Permission test */
-  for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 1); i++)
+  for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 1); i++)
     dtlb_permission_test (i);
 
   /* Data cache test */
 
 #ifndef OR1200_NO_DC
-  for (i = TLB_DATA_SET_NB; i < (dtlb_sets - 2); i++)
+  for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 2); i++)
     dtlb_dcache_test (i);
 #endif // ifndef OR1200_NO_DC
 
@@ -1524,16 +1523,16 @@ int main (void)
   /* Virtual address match test */
 
   for (j = 0; j < dtlb_ways; j++) {
-    for (i = TLB_DATA_SET_NB + 1; i < (itlb_sets - 1); i++)
+    for (i = TLB_DATA_SET_NB + 1; i < (test_itlb_sets - 1); i++)
       itlb_match_test (j, i);
   }
 
   /* Valid bit testing */
-  for (i = TLB_DATA_SET_NB; i < (itlb_sets - 1); i++)
+  for (i = TLB_DATA_SET_NB; i < (test_itlb_sets - 1); i++)
     itlb_valid_bit_test (i);
 
   /* Permission test */
-  for (i = TLB_TEXT_SET_NB; i < (itlb_sets - 1); i++)
+  for (i = TLB_TEXT_SET_NB; i < (test_itlb_sets - 1); i++)
     itlb_permission_test (i);
 
   puts("Tests completed");
