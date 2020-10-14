@@ -94,19 +94,17 @@ unsigned long start_data_addr;
 unsigned long end_data_addr;
 unsigned long start_stack_addr;
 
-// Addresses that are translated 1-to-1
-inline int program_owned_addr(unsigned long addr) {
-  return (addr <= end_data_addr) || (addr >= start_stack_addr);
-}
-
-/* For shorter simulation run */
-#define RTL_SIM 1
-
 /* Define RAM physical location and size
 Bottom half will be used for this program, the rest
 will be used for testing */
 #define RAM_START _or1k_board_mem_base
 #define RAM_SIZE  _or1k_board_mem_size
+
+// Addresses that are translated 1-to-1
+inline int program_owned_addr(unsigned long addr) {
+  return (addr <= end_data_addr)
+      || ((addr >= start_stack_addr) && (addr < RAM_SIZE));
+}
 
 #define VM_BASE 0xc0000000
 
@@ -194,7 +192,7 @@ void fail (char *func, int line)
   dmmu_disable ();
 
   report(line);
-  report(0xeeeeeeee);
+  report(0xfae1ed);
   exit(1);
 }
 
@@ -249,18 +247,29 @@ void sys_call_handler (void)
   mtspr (OR1K_SPR_SYS_ESR_BASE, mfspr (OR1K_SPR_SYS_ESR_BASE) | OR1K_SPR_SYS_SR_SM_MASK);
 }
 
+static volatile int (*dtlb_set_translate)(int set);
+
+int dtlb_default_set_translate (int set) {
+  return set;
+}
+int dtlb_swap_set_translate (int set) {
+  return (dtlb_sets - 1) + (TLB_DATA_SET_NB - set);
+}
+
+
 /* DTLB miss exception handler */
 void dtlb_miss_handler (void)
 {
-  unsigned long ea, ta, tlbtr;
+  unsigned long ea, pc, ta, tlbtr;
   int set, way = 0;
   int i;
 
   /* Get EA that cause the exception */
   ea = mfspr (OR1K_SPR_SYS_EEAR_BASE);
+  pc = mfspr (OR1K_SPR_SYS_EPCR_BASE);
 
   /* Find TLB set and LRU way */
-  set = PFN_DOWN(ea);
+  set = PFN_DOWN(ea) % dtlb_sets;
   for (i = 0; i < dtlb_ways; i++) {
     if ((mfspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set)) & OR1K_SPR_DMMU_DTLBW_MR_LRU_MASK) == 0) {
       way = i;
@@ -271,6 +280,9 @@ void dtlb_miss_handler (void)
   // Anything under the stack belongs to the program, direct tranlsate it
   if (program_owned_addr(ea)) {
     /* If this is acces to data of this program set one to one translation */
+report (0xd537f); // self owned memory dtlb miss
+report (pc);
+report (ea);
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(way, set), (ea & OR1K_SPR_DMMU_DTLBW_MR_VPN_MASK) | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(way, set), (ea & SPR_DTLBTR_PPN) | DTLB_PR_NOLIMIT);
     return;
@@ -279,9 +291,11 @@ void dtlb_miss_handler (void)
   /* Update DTLB miss counter and EA */
   dtlb_miss_count++;
   dtlb_miss_ea = ea;
-
+report (0xd7357); // test owned memory dtlb miss
+report (pc);
+report (ea);
   // Everything gets translated back to the space halfway through RAM
-  ta = (set*PAGE_SIZE) + RAM_START + (RAM_SIZE/2);
+  ta = (dtlb_set_translate(set) * PAGE_SIZE) + RAM_START + (RAM_SIZE/2);
   tlbtr = (ta & SPR_DTLBTR_PPN) | (dtlb_val & TLB_PR_MASK);
 
   /* Set DTLB entry */
@@ -467,16 +481,7 @@ int dtlb_translation_test (void)
   /* Disable DMMU */
   dmmu_disable();
 
-  printf("dtlb translation test set\n");
-
-  /* Invalidate all entries in DTLB */
-  puts("Invalidating dtlb entries");
-  for (i = 0; i < dtlb_ways; i++) {
-    for (j = 0; j < dtlb_sets; j++) {
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
-      mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
-    }
-  }
+  puts("dtlb translation test set");
 
   /* Set one to one translation for program's data space */
   printf("Setting program dtlb entries, ram_start:%lx, first_set:%ld, sets:%ld, ways:%ld\n",
@@ -485,25 +490,35 @@ int dtlb_translation_test (void)
 	dtlb_sets,
 	dtlb_ways);
 
-  for (i = PFN_DOWN(start_data_addr) % dtlb_sets; i < TLB_DATA_SET_NB; i++) {
-    ea = RAM_START + (i*PAGE_SIZE);
-    ta = RAM_START + (i*PAGE_SIZE);
-    printf ("dtlb data: %d : %lx\n", i, ea);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, i), ta | (DTLB_PR_NOLIMIT));
-  }
-  for (i = PFN_DOWN(start_stack_addr) % dtlb_sets; i < (PFN_DOWN(RAM_SIZE) % dtlb_sets); i++) {
-    ea = RAM_START + (i*PAGE_SIZE);
-    ta = RAM_START + (i*PAGE_SIZE);
-    printf ("dtlb stack: %d : %lx\n", i, ea);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, i), ta | (DTLB_PR_NOLIMIT));
+  /* Invalidate all entries in DTLB */
+  for (i = 0; i < dtlb_ways; i++) {
+    for (j = 0; j < dtlb_sets; j++) {
+      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
+      mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
+    }
   }
 
-  /* Set dtlb permisions */
+  /* Map program data and stack space one to one */
+  for (i = PFN_DOWN(start_data_addr); i < TLB_DATA_SET_NB; i++) {
+    int set = i % dtlb_sets;
+
+    ea = RAM_START + (i*PAGE_SIZE);
+    ta = RAM_START + (i*PAGE_SIZE);
+    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, set), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, set), ta | (DTLB_PR_NOLIMIT));
+  }
+  for (i = PFN_DOWN(start_stack_addr); i < (PFN_DOWN(RAM_SIZE)); i++) {
+    int set = i % dtlb_sets;
+
+    ea = RAM_START + (i*PAGE_SIZE);
+    ta = RAM_START + (i*PAGE_SIZE);
+    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, set), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, set), ta | (DTLB_PR_NOLIMIT));
+  }
+
+  /* Set dtlb miss handler default permisions and set translation */
   dtlb_val = DTLB_PR_NOLIMIT;
-
-  puts("Setting up test dtlb entries");
+  dtlb_set_translate = &dtlb_default_set_translate;
 
   /* Write test pattern */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
@@ -524,7 +539,7 @@ int dtlb_translation_test (void)
   puts("Enabling DMMU");
   dmmu_enable();
 
-puts("check 1");
+  puts("check 1 - mid to mid");
   /* Check the pattern */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
@@ -541,6 +556,7 @@ puts("check 1");
     REG32(ea) = i;
   }
 
+  dmmu_disable();
   /* Set 0 -> RAM_START + (RAM_SIZE/2) translation */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = i*PAGE_SIZE;
@@ -548,8 +564,9 @@ puts("check 1");
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(dtlb_ways - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, i), ta | DTLB_PR_NOLIMIT);
   }
+  dmmu_enable();
 
-puts("check 2");
+  puts("check 2 - low to mid");
   /* Check the pattern */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
     ea = i*PAGE_SIZE;
@@ -565,21 +582,30 @@ puts("check 2");
   }
 
   /* Set hi -> lo, lo -> hi translation */
+  dmmu_disable();
+  dtlb_set_translate = &dtlb_swap_set_translate;
+
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
-    ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    ta = RAM_START + (RAM_SIZE/2) + ((dtlb_sets - i - 1 + TLB_DATA_SET_NB)*
-				     PAGE_SIZE);
+    // accessing the first set page 12                     13
+    // goes to the last set page    63 = (64-1) + (12-12)  62 = (64-1) + (12-13)
+    int swap = dtlb_swap_set_translate(i);
+
+    ea = RAM_START + (RAM_SIZE/2) + (i * PAGE_SIZE);
+    ta = RAM_START + (RAM_SIZE/2) + (swap * PAGE_SIZE);
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(dtlb_ways - 1, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, i), ta | DTLB_PR_NOLIMIT);
   }
+  dmmu_enable();
 
-puts("check 3");
+  puts("check 3 - swapped");
   /* Check the pattern */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
-    ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    ASSERT(REG32(ea) == (dtlb_sets - i - 1 + TLB_DATA_SET_NB));
-    ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
-    ASSERT(REG32(ea) == (0xffffffff - dtlb_sets + i + 1 - TLB_DATA_SET_NB));
+    int swap = dtlb_swap_set_translate(i);
+
+    ea = RAM_START + (RAM_SIZE/2) + (i * PAGE_SIZE);
+    ASSERT(REG32(ea) == swap);
+    ea = RAM_START + (RAM_SIZE/2) + (((i + 1)*PAGE_SIZE) - 4);
+    ASSERT(REG32(ea) == (0xffffffff - swap));
   }
 
   /* Write new pattern */
@@ -591,14 +617,18 @@ puts("check 3");
   dmmu_disable();
   puts("Disabled DMMU");
 
-  puts("check 4");
+  puts("check 4 - swapped mmu off");
   /* Check the pattern */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
+    int swap = dtlb_swap_set_translate(i);
+
     ea = RAM_START + (RAM_SIZE/2) + (i*PAGE_SIZE);
-    ASSERT(REG32(ea) == (0xffffffff - dtlb_sets + i + 1 - TLB_DATA_SET_NB));
+    ASSERT(REG32(ea) == (0xffffffff - swap));
     ea = RAM_START + (RAM_SIZE/2) + ((i + 1)*PAGE_SIZE) - 4;
-    ASSERT(REG32(ea) == (dtlb_sets - i - 1 + TLB_DATA_SET_NB));
+    ASSERT(REG32(ea) == swap);
   }
+
+  dtlb_set_translate = &dtlb_default_set_translate;
 
   puts("done");
   return 0;
@@ -670,25 +700,28 @@ int dtlb_match_test (int way, int set)
     dtlb_miss_count = 0;
     dtlb_miss_ea = 0;
 
-    /* Read last address of previous page */
-    tmp = REG32(match_space - 4);
-    ASSERT(tmp == 0x00112233);
-    ASSERT(dtlb_miss_count == 1);
+    /* Do our testing as long we don't overlap with our physical 1-to-1 space */
+    if (!program_owned_addr(match_space)) {
+      /* Read last address of previous page */
+      tmp = REG32(match_space - 4);
+      ASSERT(tmp == 0x00112233);
+      ASSERT(dtlb_miss_count == 1);
 
-    /* Read first address of the page */
-    tmp = REG32(match_space);
-    ASSERT(tmp == 0x44556677);
-    ASSERT(dtlb_miss_count == 1);
+      /* Read first address of the page */
+      tmp = REG32(match_space);
+      ASSERT(tmp == 0x44556677);
+      ASSERT(dtlb_miss_count == 1);
 
-    /* Read last address of the page */
-    tmp = REG32(match_space + PAGE_SIZE - 4);
-    ASSERT(tmp == 0x8899aabb);
-    ASSERT(dtlb_miss_count == 1);
+      /* Read last address of the page */
+      tmp = REG32(match_space + PAGE_SIZE - 4);
+      ASSERT(tmp == 0x8899aabb);
+      ASSERT(dtlb_miss_count == 1);
 
-    /* Read first address of next page */
-    tmp = REG32(match_space + PAGE_SIZE);
-    ASSERT(tmp == 0xccddeeff);
-    ASSERT(dtlb_miss_count == 2);
+      /* Read first address of next page */
+      tmp = REG32(match_space + PAGE_SIZE);
+      ASSERT(tmp == 0xccddeeff);
+      ASSERT(dtlb_miss_count == 2);
+    }
 
     add = add << 1;
     match_space = add + (set*PAGE_SIZE);
@@ -1196,21 +1229,24 @@ int itlb_match_test (int way, int set)
     itlb_miss_count = 0;
     itlb_miss_ea = 0;
 
-    /* Jump on last address of previous page */
-    call (match_space - 8);
-    ASSERT(itlb_miss_count == 1);
+    /* Do our testing as long we don't overlap with our physical 1-to-1 space */
+    if (!program_owned_addr(match_space)) {
+      /* Jump on last address of previous page */
+      call (match_space - 8);
+      ASSERT(itlb_miss_count == 1);
 
-    /* Jump on first address of the page */
-    call (match_space);
-    ASSERT(itlb_miss_count == 1);
+      /* Jump on first address of the page */
+      call (match_space);
+      ASSERT(itlb_miss_count == 1);
 
-    /* Jump on last address of the page */
-    call (match_space + PAGE_SIZE - 8);
-    ASSERT(itlb_miss_count == 1);
+      /* Jump on last address of the page */
+      call (match_space + PAGE_SIZE - 8);
+      ASSERT(itlb_miss_count == 1);
 
-    /* Jump on first address of next page */
-    call (match_space + PAGE_SIZE);
-    ASSERT(itlb_miss_count == 2);
+      /* Jump on first address of next page */
+      call (match_space + PAGE_SIZE);
+      ASSERT(itlb_miss_count == 2);
+    }
 
     add = add << 1;
     match_space = add + (set*PAGE_SIZE);
