@@ -161,7 +161,7 @@ volatile int itlb_miss_count;
 volatile int ipage_fault_count;
 
 /* EA of last DTLB miss exception */
-unsigned long dtlb_miss_ea;
+volatile unsigned long dtlb_miss_ea;
 
 /* EA of last data page fault exception */
 unsigned long dpage_fault_ea;
@@ -743,29 +743,14 @@ access so miss handler will set them to valid,
 try access again - there should be no miss exceptions */
 int dtlb_valid_bit_test (int set)
 {
-  int i, j;
-  unsigned long ea, ta;
+  int i;
 
   /* Disable DMMU */
   dmmu_disable();
 
   printf("dtlb_valid_bit_test, set %d\n", set);
 
-  /* Invalidate all entries in DTLB */
-  for (i = 0; i < dtlb_ways; i++) {
-    for (j = 0; j < dtlb_sets; j++) {
-      mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, j), 0);
-      mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(i, j), 0);
-    }
-  }
-
-  /* Set one to one translation for the use of this program */
-  for (i = 0; i < TLB_DATA_SET_NB; i++) {
-    ea = RAM_START + (i*PAGE_SIZE);
-    ta = RAM_START + (i*PAGE_SIZE);
-    mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(0, i), ea | OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
-    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(0, i), ta | DTLB_PR_NOLIMIT);
-  }
+  tlb_map_program_memory();
 
   /* Reset DTLB miss counter and EA */
   dtlb_miss_count = 0;
@@ -773,31 +758,39 @@ int dtlb_valid_bit_test (int set)
 
   /* Set dtlb permisions */
   dtlb_val = DTLB_PR_NOLIMIT;
+  dtlb_set_translate = &dtlb_default_set_translate;
 
-  /* Resetv DTLBMR for every way */
+  /* Reset DTLBMR for every way */
   for (i = 0; i < dtlb_ways; i++) {
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set), 0);
   }
 
+  puts ("check 1 - tlb miss counts unmapped");
   /* Enable DMMU */
   dmmu_enable();
 
   /* Perform writes to address, that is not in DTLB */
   for (i = 0; i < dtlb_ways; i++) {
-    REG32(RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)) = i;
+    unsigned long ea = RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE);
+
+    REG32(ea) = i;
 
     /* Check if there was DTLB miss */
     ASSERT(dtlb_miss_count == (i + 1));
-    ASSERT(dtlb_miss_ea == (RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)));
+    ASSERT(dtlb_miss_ea == ea);
   }
 
   /* Reset DTLB miss counter and EA */
   dtlb_miss_count = 0;
   dtlb_miss_ea = 0;
 
+  puts ("check 2 - tlb miss counts mapped");
+
   /* Perform reads to address, that is now in DTLB */
   for (i = 0; i < dtlb_ways; i++) {
-    ASSERT(REG32(RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)) == i);
+    unsigned long ea = RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE);
+
+    ASSERT(REG32(ea) == i);
 
     /* Check if there was DTLB miss */
     ASSERT(dtlb_miss_count == 0);
@@ -808,13 +801,17 @@ int dtlb_valid_bit_test (int set)
     mtspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set), mfspr (OR1K_SPR_DMMU_DTLBW_MR_ADDR(i, set)) & ~OR1K_SPR_DMMU_DTLBW_MR_V_MASK);
   }
 
+  puts ("check 3 - tlb miss counts mapped invalid");
+
   /* Perform reads to address, that is now in DTLB but is invalid */
   for (i = 0; i < dtlb_ways; i++) {
-    ASSERT(REG32(RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)) == i);
+    unsigned long ea = RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE);
+
+    ASSERT(REG32(ea) == i);
 
     /* Check if there was DTLB miss */
     ASSERT(dtlb_miss_count == (i + 1));
-    ASSERT(dtlb_miss_ea == (RAM_START + RAM_SIZE + (i*dtlb_sets*PAGE_SIZE) + (set*PAGE_SIZE)));
+    ASSERT(dtlb_miss_ea == ea);
   }
 
   /* Disable DMMU */
