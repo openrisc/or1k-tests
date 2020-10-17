@@ -9,6 +9,7 @@
 */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include "support.h"
 
 static int smul_errors, umul_errors;

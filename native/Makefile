@@ -12,20 +12,20 @@ CTARGETS = $(CTESTS:%.c=$(BUILDDIR)/%)
 
 BUILDDIR=build
 
-.PHONY: all all-asm all-c clean lib help
-all: all-asm all-c
+.PHONY: all all-asm all-c clean lib
+all: lib all-asm all-c
 
-all-asm: lib $(STARGETS)
-all-c: lib $(CTARGETS)
+all-asm: $(STARGETS)
+all-c: $(CTARGETS)
 
 lib:
-	$(MAKE) --directory=$@
+	$(MAKE) --directory=lib
 
-$(BUILDDIR)/%: %.S
+$(BUILDDIR)/%: %.S lib/libsupport.a
 	@mkdir -p $(dir $@)
-	$(CC) -nostartfiles -Iinclude -Iinclude/$(TARGET) $(CFLAGS) -Llib $< -lsupport -o $@
+	$(CC) -nostartfiles -Iinclude -Iinclude/$(TARGET) -Llib $< -lsupport -o $@
 
-$(BUILDDIR)/%: %.c
+$(BUILDDIR)/%: %.c lib/libsupport.a
 	@mkdir -p $(dir $@)
 	$(CC) -Iinclude -Iinclude/$(TARGET) $(CFLAGS) -Llib $< -lsupport -o $@
 

@@ -25,13 +25,6 @@ unsigned long mfspr(unsigned long spr)
   return value;
 }
 
-/* Print out a character via simulator */
-void sim_putc(unsigned char c)
-{
-  asm("l.addi\tr3,%0,0": :"r" (c));
-  asm("l.nop %0": :"K" (NOP_PUTC));
-}
-
 /* print long */
 void report(unsigned long value)
 {
