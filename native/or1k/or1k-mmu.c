@@ -447,11 +447,9 @@ static void immu_enable (void)
 {
   /* Register ITLB miss handler */
   or1k_exception_handler_add (0xa, itlb_miss_handler);
-  //excpt_itlbmiss = (unsigned long)itlb_miss_handler;
 
   /* Register instruction page fault handler */
   or1k_exception_handler_add (0x4, ipage_fault_handler);
-  //excpt_ipfault = (unsigned long)ipage_fault_handler;
 
   /* Enable IMMU */
   or1k_immu_enable ();
@@ -463,11 +461,27 @@ static void immu_disable (void)
   or1k_immu_disable ();
 }
 
+static inline void reset_tlb_miss_counts () {
+  dtlb_miss_count = 0;
+  dtlb_miss_ea = 0;
+
+  itlb_miss_count = 0;
+  itlb_miss_ea = 0;
+}
+
+static inline void reset_tlb_handler_config () {
+  itlb_val = ITLB_PR_NOLIMIT;
+  itlb_set_translate = &tlb_default_set_translate;
+
+  dtlb_val = DTLB_PR_NOLIMIT;
+  dtlb_set_translate = &tlb_default_set_translate;
+}
+
 /* Setup program, data and stack memory in the DTLB and ITLB,
    This is not strickly needed as tlb misses will set these up
    for us but it helps to test setting these up outside the tlb
    handler.  */
-static void tlb_map_program_memory()
+static void init_program_memory ()
 {
   int i, j;
   unsigned long ea, ta;
@@ -527,11 +541,9 @@ static int dtlb_translation_test (void)
   dmmu_disable();
 
   puts("dtlb translation test set");
-  tlb_map_program_memory();
 
   /* Set dtlb miss handler default permisions and set translation */
-  dtlb_val = DTLB_PR_NOLIMIT;
-  dtlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_handler_config ();
 
   /* Write test pattern */
   for (i = TLB_DATA_SET_NB; i < dtlb_sets; i++) {
@@ -661,11 +673,8 @@ int dtlb_match_test (int way, int set)
 
   printf("dtlb_match_test - way %d set %d\n", way, set);
 
-  tlb_map_program_memory();
-
   /* Set dtlb permisions and set translation used in tlb miss handler */
-  dtlb_val = DTLB_PR_NOLIMIT;
-  dtlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_handler_config ();
 
   // Setup translate area (physical address) - based at halfway through RAM,
   // and then offset by the area encompassed by the set we wish to test.
@@ -692,9 +701,7 @@ int dtlb_match_test (int way, int set)
     // Set TRANSLATE register to the areas where we have set our data
     mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(way, set), ta | DTLB_PR_NOLIMIT);
 
-    /* Reset DTLB miss counter and EA */
-    dtlb_miss_count = 0;
-    dtlb_miss_ea = 0;
+    reset_tlb_miss_counts ();
 
     /* Do our testing as long we don't overlap with our physical 1-to-1 space */
     if (!program_owned_addr(ea)) {
@@ -752,15 +759,8 @@ static int dtlb_valid_bit_test (int set)
 
   printf("dtlb_valid_bit_test, set %d\n", set);
 
-  tlb_map_program_memory();
-
-  /* Reset DTLB miss counter and EA */
-  dtlb_miss_count = 0;
-  dtlb_miss_ea = 0;
-
-  /* Setup dtlb config */
-  dtlb_val = DTLB_PR_NOLIMIT;
-  dtlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_miss_counts ();
+  reset_tlb_handler_config ();
 
   /* Reset DTLBMR for every way */
   for (i = 0; i < dtlb_ways; i++) {
@@ -782,9 +782,7 @@ static int dtlb_valid_bit_test (int set)
     ASSERT(dtlb_miss_ea == ea);
   }
 
-  /* Reset DTLB miss counter and EA */
-  dtlb_miss_count = 0;
-  dtlb_miss_ea = 0;
+  reset_tlb_miss_counts ();
 
   puts ("check 2 - tlb miss counts mapped");
 
@@ -836,8 +834,6 @@ static int dtlb_permission_test (int set)
 
   /* Disable DMMU */
   dmmu_disable();
-
-  tlb_map_program_memory();
 
   /* Set dtlb permisions */
   dtlb_set_translate = &tlb_default_set_translate;
@@ -956,11 +952,8 @@ int dtlb_dcache_test (int set)
   /* Disable DMMU */
   dmmu_disable();
 
-  tlb_map_program_memory();
-
   /* Set dtlb permisions and set translation used in tlb miss handler */
-  dtlb_val = DTLB_PR_NOLIMIT;
-  dtlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_handler_config ();
 
   /* Use (RAM_START + (RAM_SIZE/2)) as location we'll poke via MMUs */
   /* Configure a 1-1 mapping for it, and a high->low mapping for it */
@@ -1043,11 +1036,8 @@ int itlb_translation_test (void)
   /* Disable IMMU */
   immu_disable ();
 
-  tlb_map_program_memory ();
-
   /* Set itlb permisions */
-  itlb_val = ITLB_PR_NOLIMIT;
-  itlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_handler_config ();
 
   /* Write test program */
   for (i = TLB_TEXT_SET_NB; i < itlb_sets; i++) {
@@ -1126,11 +1116,8 @@ int itlb_match_test (int way, int set)
   /* Disable IMMU */
   immu_disable();
 
-  tlb_map_program_memory ();
-
   /* Set dtlb permisions */
-  itlb_val = ITLB_PR_NOLIMIT;
-  itlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_handler_config ();
 
   // Write program which will just return to caller
   ta = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
@@ -1163,9 +1150,7 @@ int itlb_match_test (int way, int set)
     mtspr (OR1K_SPR_IMMU_ITLBW_MR_ADDR(way, set), ea | OR1K_SPR_IMMU_ITLBW_MR_V_MASK);
     mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(way, set), ta | ITLB_PR_NOLIMIT);
 
-    /* Reset ITLB miss counter and EA */
-    itlb_miss_count = 0;
-    itlb_miss_ea = 0;
+    reset_tlb_miss_counts ();
 
     /* Do our testing as long we don't overlap with our physical 1-to-1 space */
     if (!program_owned_addr(ea)) {
@@ -1218,15 +1203,11 @@ int itlb_valid_bit_test (int set)
   /* Disable IMMU */
   immu_disable();
 
-  tlb_map_program_memory ();
-
   /* Reset ITLB miss counter and EA */
-  itlb_miss_count = 0;
-  itlb_miss_ea = 0;
+  reset_tlb_miss_counts ();
 
   /* Set itlb permisions */
-  itlb_val = ITLB_PR_NOLIMIT;
-  itlb_set_translate = &tlb_default_set_translate;
+  reset_tlb_handler_config ();
 
   /* Reset ITLBMR for every way after the program code */
   for (i = TLB_TEXT_SET_NB; i < itlb_ways; i++) {
@@ -1250,9 +1231,8 @@ int itlb_valid_bit_test (int set)
   ASSERT(itlb_miss_count == 1);
   ASSERT(itlb_miss_ea == ea);
 
-  /* Reset ITLB miss counter and EA */
-  itlb_miss_count = 0;
-  itlb_miss_ea = 0;
+  reset_tlb_miss_counts ();
+
   /* Perform jumps to address, that is now in ITLB */
   call (ea);
 
@@ -1291,8 +1271,6 @@ int itlb_permission_test (int set)
   /* Disable IMMU */
   immu_disable();
 
-  tlb_map_program_memory ();
-
   // Address that we will actually access
   ea = RAM_START + (RAM_SIZE/2) + (set*PAGE_SIZE);
 
@@ -1322,10 +1300,9 @@ int itlb_permission_test (int set)
   mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), ea | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK));
 
   call (ea);
-// Failed here, TODO no ipagefault?
-//  ASSERT(ipage_fault_count == 1);
+  ASSERT(ipage_fault_count == 1);
   call (ea + 8);
-//  ASSERT(ipage_fault_count == 1);
+  ASSERT(ipage_fault_count == 1);
 
   /* Execute user */
   itlb_val = OR1K_SPR_IMMU_ITLBW_TR_CI_MASK | OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK;
@@ -1401,6 +1378,8 @@ int main (void)
 		dtlb_ways,
 		itlb_sets,
 		itlb_ways);
+
+  init_program_memory ();
 
   /* Register bus error handler */
   or1k_exception_handler_add (0x2, bus_err_handler);

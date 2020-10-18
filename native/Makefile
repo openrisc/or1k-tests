@@ -19,7 +19,9 @@ all-asm: $(STARGETS)
 all-c: $(CTARGETS)
 
 lib:
-	$(MAKE) --directory=lib
+	$(MAKE) --directory=$@
+
+lib/libsupport.a: lib
 
 $(BUILDDIR)/%: %.S lib/libsupport.a
 	@mkdir -p $(dir $@)
