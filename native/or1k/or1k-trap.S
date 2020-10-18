@@ -1,12 +1,11 @@
 /*
 
 	OR1K trap test
-	
+
 	Check basic functionality.
 
 	Julius Baxter, julius@opencores.org
 
-	
 */
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -34,7 +33,6 @@
 //// from http://www.opencores.org/lgpl.shtml                     ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
-	
 
 /*
 
@@ -43,16 +41,15 @@
 	gpr1 counts each time we enter the handler.
 
 */
-	
+
 #include <or1k-asm.h>
 #include <or1k-sprs.h>
 
 /* =================================================== [ exceptions ] === */
 	.section .vectors, "ax"
 
-
 /* ---[ 0x100: RESET exception ]----------------------------------------- */
-        .org 0x100 	
+	.org 0x100
 	l.movhi r0, 0
 	/* Clear status register */
 	l.ori 	r1, r0, OR1K_SPR_SYS_SR_SM_MASK
@@ -65,14 +62,14 @@
 	l.movhi r4, hi(_start)
 	l.ori 	r4, r4, lo(_start)
 	l.jr    r4
-	l.nop
+	 l.nop
 
 	// Illegal instruction handler
 	.org 0x700
 	l.movhi	r3,0xbaaa
 	l.ori	r3,r3,0xaaad
 	l.nop	1
-	
+
 	// Trap handler
 	.org 0xe00
 	l.mfspr	r3,r0,OR1K_SPR_SYS_EPCR_BASE	/* Get PC of trap */
@@ -87,19 +84,17 @@
 /* =================================================== [ text ] === */
 	.section .text
 
-/* =================================================== [ start ] === */	
+/* =================================================== [ start ] === */
 
 	.global _start
-_start:	
+_start:
 	// Kick off test
 	l.jal   _main
-	l.nop
-	
-
+	 l.nop
 
 /* =================================================== [ main ] === */
-	
-	.global _main	
+
+	.global _main
 _main:
 
 	l.movhi	r1,0	/* clear r1 - used as exception handler counter */
@@ -117,12 +112,12 @@ _main:
 	TODO - look at whether we drop the checking of bit in SR */
 	l.trap	9
 	l.addi	r2,r2,1 /* For now, just add this to make test pass*/
-	
+
 	/* Check results OK */
 	l.sfeq	r1,r2
 	l.bf	test_ok
 
-test_fail:	
+test_fail:
 	l.movhi	r3,0xbaaa
 	l.ori	r3,r3,0xaaad
 	l.nop	0x1
@@ -135,5 +130,3 @@ test_ok:
 	l.nop 	0x1 /* Exit simulation */
 	l.nop
 	l.nop
-
-	

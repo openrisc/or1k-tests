@@ -112,10 +112,10 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
   test_log=`mktemp -t $test_name.XXX.log`
 
   date -u -Iseconds > $test_log
-  echo "Running: fusesoc run --target $TARGET $TARGET_ARGS $CORE --elf-load $test_path $CORE_ARGS" >> $test_log
+  echo "Running: fusesoc run --target $TARGET $TARGET_ARGS $CORE --elf_load $test_path $CORE_ARGS" >> $test_log
 
   printf "%-60s" "Running $test_name"
-  timeout $TEST_TIMEOUT fusesoc run --target $TARGET $TARGET_ARGS $CORE --elf-load $test_path $CORE_ARGS >> $test_log 2>&1 &
+  timeout $TEST_TIMEOUT fusesoc run --target $TARGET $TARGET_ARGS $CORE --elf_load $test_path $CORE_ARGS >> $test_log 2>&1 &
   timeout_pid=$!
 
   if ! wait $timeout_pid ; then

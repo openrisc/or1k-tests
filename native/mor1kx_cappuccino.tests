@@ -31,7 +31,6 @@ or1k/or1k-mul.c
 or1k/or1k-mul-basic.S
 or1k/or1k-msync.S
 or1k/or1k-newlibirq.c
-or1k/or1k-ovcy.c
 or1k/or1k-ov.S
 or1k/or1k-regjmp.S
 or1k/or1k-rfe.S
@@ -40,7 +39,6 @@ or1k/or1k-sf.S
 or1k/or1k-shiftopts.S
 or1k/or1k-shortbranch.S
 or1k/or1k-shortjump.S
-or1k/or1k-simple.c
 or1k/or1k-systemcall.S
 or1k/or1k-tickloop.S
 or1k/or1k-tickrfforward.S

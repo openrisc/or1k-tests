@@ -1,33 +1,34 @@
-/* 
-   Test integer multiply 
-   
-   Use a software multiplication algorithm to compare against hardware 
+/*
+   Test integer multiply
+
+   Use a software multiplication algorithm to compare against hardware
    calculated results
 
    Julius Baxter, julius@opencores.org
 
 */
 
-#include "cpu-utils.h"
-#include "printf.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include "support.h"
 
 static int smul_errors, umul_errors;
 
 #define VERBOSE_TESTS 0
 
 // Make this bigger when running on FPGA target. For simulation it's enough.
-#define NUM_TESTS 2000000
+#define NUM_TESTS 32
 
-int 
+int
 or1k_mul(int multiplicant, int multiplier)
 {
   int result;
-  asm ("l.mul\t%0,%1,%2" : "=r" (result) : "r" (multiplicant), 
+  asm ("l.mul\t%0,%1,%2" : "=r" (result) : "r" (multiplicant),
        "r" (multiplier));
   return result;
 }
 
-unsigned int 
+unsigned int
 or1k_mulu(unsigned int mulidend, unsigned int mulisor)
 {
   int result;
@@ -40,7 +41,7 @@ void
 check_mul(int multiplicand, int multiplier, int expected_result)
 {
 #if VERBOSE_TESTS
-  printf("l.mul  0x%.8x * 0x%.8x (%11d * %11d)= (SW) 0x%.8x (%11d) : ", multiplicand, multiplier, 
+  printf("l.mul  0x%.8x * 0x%.8x (%11d * %11d)= (SW) 0x%.8x (%11d) : ", multiplicand, multiplier,
 	 multiplicand, multiplier, expected_result, expected_result);
 #endif
   int result =  or1k_mul(multiplicand, multiplier);
@@ -51,7 +52,7 @@ check_mul(int multiplicand, int multiplier, int expected_result)
     {
       printf("l.mul  0x%.8x * 0x%.8x = (SW) 0x%.8x : ", multiplicand, multiplier,
 	     expected_result);
-      
+
       printf("(HW) 0x%.8x - MISMATCH\n",result);
       smul_errors++;
     }
@@ -59,15 +60,15 @@ check_mul(int multiplicand, int multiplier, int expected_result)
   else
     printf("OK\n");
 #endif
-      
+
 }
 
 void
-check_mulu(unsigned int multiplicand, unsigned int multiplier, 
+check_mulu(unsigned int multiplicand, unsigned int multiplier,
 	   unsigned int expected_result)
 {
 #if VERBOSE_TESTS
-  printf("l.mulu 0x%.8x * 0x%.8x (%11d * %11d)= (SW) 0x%.8x (%11d) : ", multiplicand, multiplier, 
+  printf("l.mulu 0x%.8x * 0x%.8x (%11d * %11d)= (SW) 0x%.8x (%11d) : ", multiplicand, multiplier,
 	 multiplicand, multiplier, expected_result, expected_result);
 #endif
 
@@ -79,7 +80,7 @@ check_mulu(unsigned int multiplicand, unsigned int multiplier,
     {
       printf("l.mulu 0x%.8x * 0x%.8x = (SW) 0x%.8x : ", multiplicand, multiplier,
 	     expected_result);
-      
+
       printf("(HW) 0x%.8x (%d) - MISMATCH\n",result, result);
       umul_errors++;
     }
@@ -91,7 +92,7 @@ check_mulu(unsigned int multiplicand, unsigned int multiplier,
 
 
 // Software implementation of multiply
-unsigned int 
+unsigned int
 mul_soft(unsigned int n, unsigned int d)
 {
 
@@ -104,7 +105,7 @@ mul_soft(unsigned int n, unsigned int d)
       if ((1<<i) & d)
 	{
 	  m += (unsigned int) (n << i);
-	}      
+	}
     }
 
   return (unsigned int) m;
@@ -116,7 +117,7 @@ main(void)
 #ifdef _UART_H_
   uart_init(DEFAULT_UART);
 #endif
-  
+
   umul_errors = 0;
   smul_errors = 0;
 
@@ -143,19 +144,19 @@ main(void)
 #else
       report(0x10101010);
 #endif
-      
+
       if (n&0x10) // Randomly select if we should negate n
 	{
 	  // 2's complement of n
 	  n = ~n + 1;
 	}
-      
+
       if (d&0x80) // Randomly select if we should negate d
 	{
 	  // 2's complement of d
 	  d = ~d + 1;
 	}
-      
+
       if ((n & 0x80000000) && (d & 0x80000000))
 	expected_result = mul_soft(~(n-1), ~(d-1));
       else if ((n & 0x80000000) && !(d & 0x80000000))
@@ -180,7 +181,7 @@ main(void)
 
       /* Signed multiply */
       check_mul(n, d, expected_result);
-      
+
 
       /* Unsigned mulide test */
       /* Ensure both are positive */
@@ -189,7 +190,7 @@ main(void)
 	  // 2's complement of n
 	  n = ~n + 1;
 	}
-      
+
       if (d&(1<<31))
 	{
 	  // 2's complement of d
@@ -204,7 +205,7 @@ main(void)
       report(d);
       report(expected_result);
 #endif
-      
+
       /* Unsigned multiply */
       check_mulu(n, d, expected_result);
 #if VERBOSE_TESTS==0
@@ -227,5 +228,5 @@ main(void)
     report(0x8000000d);
 
   return 0;
-  
+
 }
