@@ -36,7 +36,7 @@
 DIR=`dirname $0`
 CORE=mor1kx-generic
 TEST_PATTERN=$1 ; shift
-TEST_TIMEOUT="3m"
+TEST_TIMEOUT=${TEST_TIMEOUT:-3m}
 
 if [ -z $TEST_PATTERN ] ; then
   TEST_PATTERN="or1k-*"
@@ -74,7 +74,7 @@ if [ ! -d $DIR/build/or1k ] ; then
   exit 1
 fi
 
-echo "Running test with test filter: $TEST_PATTERN"
+echo "Running test with test filter: '$TEST_PATTERN' timeout: '$TEST_TIMEOUT'"
 if [ "$TARGET_ARGS" ] ; then
   echo "  TARGET_ARGS  '$TARGET_ARGS'"
 fi
@@ -84,6 +84,7 @@ fi
 if [ "$EXPECTED_FAILURES" ] ; then
   echo "  EXPECTED_FAILURES '$EXPECTED_FAILURES'"
 fi
+
 if [ -z "$TARGET" ] ; then
   TARGET=mor1kx_tb
 fi
