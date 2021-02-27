@@ -537,6 +537,10 @@ static int dtlb_translation_test (void)
   int i;
   unsigned long ea, ta;
 
+  /* Check dmmu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_DMP_MASK))
+    return 0;
+
   /* Disable DMMU */
   dmmu_disable();
 
@@ -668,6 +672,10 @@ int dtlb_match_test (int way, int set)
   unsigned long add;
   unsigned long ea, ta;
 
+  /* Check dmmu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_DMP_MASK))
+    return 0;
+
   /* Disable DMMU */
   dmmu_disable();
 
@@ -754,6 +762,10 @@ static int dtlb_valid_bit_test (int set)
 {
   int i;
 
+  /* Check dmmu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_DMP_MASK))
+    return 0;
+
   /* Disable DMMU */
   dmmu_disable();
 
@@ -829,6 +841,10 @@ of page fault exceptions */
 static int dtlb_permission_test (int set)
 {
   unsigned long ea, tmp;
+
+  /* Check dmmu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_DMP_MASK))
+    return 0;
 
   printf("dtlb_permission_test, set %d\n", set);
 
@@ -940,6 +956,10 @@ int dtlb_dcache_test (int set)
   if (set==(dtlb_sets-1))
     return 0;
 
+  /* Check dmmu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_DMP_MASK))
+    return 0;
+
   // Check data cache is present and enabled
   if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_DCP_MASK))
     return 0;
@@ -1031,6 +1051,10 @@ int itlb_translation_test (void)
   int i;
   unsigned long ea, ta;
 
+  /* Check immu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_IMP_MASK))
+    return 0;
+
   puts("itlb_translation_test");
 
   /* Disable IMMU */
@@ -1110,6 +1134,10 @@ int itlb_match_test (int way, int set)
   int i;
   unsigned long add;
   unsigned long ea, ta;
+
+  /* Check immu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_IMP_MASK))
+    return 0;
 
   printf("itlb_match_test - way %d set %d\n", way, set);
 
@@ -1198,6 +1226,10 @@ int itlb_valid_bit_test (int set)
   int i;
   unsigned long ea, ta;
 
+  /* Check immu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_IMP_MASK))
+    return 0;
+
   printf("itlb_valid_bit_test set = %d\n", set);
 
   /* Disable IMMU */
@@ -1265,6 +1297,10 @@ of page fault exceptions */
 int itlb_permission_test (int set)
 {
   unsigned long ea;
+
+  /* Check immu is present */
+  if (!(mfspr(OR1K_SPR_SYS_UPR_ADDR) & OR1K_SPR_SYS_UPR_IMP_MASK))
+    return 0;
 
   printf("itlb_permission_test set = %d\n", set);
 
