@@ -8,7 +8,8 @@
 
 static void write_intgen_reg(uint32_t reg, int value)
 {
-	*((uint8_t *)INTGEN_BASE + reg) = value;
+        uint32_t addr = INTGEN_BASE + reg;
+	*(volatile uint8_t *)addr = value;
 }
 
 void intgen_isr(void *data)

@@ -19,7 +19,7 @@ $(SOBJ): %.o: %.S
 	$(CC) -c $< -o $@
 
 $(COBJ): %.o: %.c
-	$(CC) -c $< -o $@
+	$(CC) -I../include -c $< -o $@
 
 clean:
 	rm -f *.o *.a *~

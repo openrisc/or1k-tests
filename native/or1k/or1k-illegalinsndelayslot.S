@@ -108,7 +108,7 @@ _main:
 	l.addi	r2,r2,1
 
 	l.j	test_function
-	 lf.madd.d r3,r1,r2
+	 lf.madd.d r3,r4,r1,r2,r5,r6
 	l.addi	r2,r2,1
 
 	l.sfeq	r1,r2

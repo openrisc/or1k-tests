@@ -101,7 +101,7 @@ signed long test_bitop(int i)
 		printf("  shr:%.8lx", shr);
 		report(shr);
 #endif
-		bit += (~j ^ 0x11223344) & 0x33557788 + j | 0x11223344;
+		bit += ((~j ^ 0x11223344) & (0x33557788 + j)) | 0x11223344;
 #if 0
 		printf("  bit:%.8lx\n", bit);
 		report(bit);

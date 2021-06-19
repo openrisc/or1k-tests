@@ -666,7 +666,7 @@ static int dtlb_translation_test (void)
 /* EA match register test
    Shifting one in DTLBMR and performing accesses to boundaries
    of the page, checking the triggering of exceptions */
-int dtlb_match_test (int way, int set)
+static int dtlb_match_test (int way, int set)
 {
   int i, tmp;
   unsigned long add;
@@ -947,7 +947,7 @@ static int dtlb_permission_test (int set)
 /* Dcache test - check inhibit
    Write data with cache inhibit on and off, check for coherency
  */
-int dtlb_dcache_test (int set)
+static int dtlb_dcache_test (int set)
 {
   unsigned long ea, ta, ciea;
   unsigned long d1, d2;
@@ -1129,7 +1129,7 @@ int itlb_translation_test (void)
 /* EA match register test
 Shifting one in ITLBMR and performing accesses to boundaries
 of the page, checking the triggering of exceptions */
-int itlb_match_test (int way, int set)
+static int itlb_match_test (int way, int set)
 {
   int i;
   unsigned long add;
@@ -1221,7 +1221,7 @@ int itlb_match_test (int way, int set)
 Set all ways of one set to be invalid, perform
 access so miss handler will set them to valid,
 try access again - there should be no miss exceptions */
-int itlb_valid_bit_test (int set)
+static int itlb_valid_bit_test (int set)
 {
   int i;
   unsigned long ea, ta;
@@ -1294,7 +1294,7 @@ int itlb_valid_bit_test (int set)
 Set various permissions, perform r/w access
 in user and supervisor mode and chack triggering
 of page fault exceptions */
-int itlb_permission_test (int set)
+static int itlb_permission_test (int set)
 {
   unsigned long ea;
 

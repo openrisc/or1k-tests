@@ -79,6 +79,8 @@
 	l.addi	r1,r1,1		/* Increment exception counter */
 	l.or	r3,r1,r0	/* Move counter to r3 to report */
 	l.nop 	0x2
+	l.mfspr	r3,r0,OR1K_SPR_SYS_EEAR_BASE	/* Get EEAR of trap */
+	l.nop 	0x2
 	l.rfe
 
 /* =================================================== [ text ] === */
@@ -102,7 +104,7 @@ _main:
 
 	/* Trap instruction */
 	l.trap	15
-	l.addi	r2,r2,1
+	 l.addi	r2,r2,1
 
 	// Clear flag
 	l.sfne	r0,r0
@@ -111,7 +113,7 @@ _main:
 	   shouldn't trap
 	TODO - look at whether we drop the checking of bit in SR */
 	l.trap	9
-	l.addi	r2,r2,1 /* For now, just add this to make test pass*/
+	 l.addi	r2,r2,1 /* For now, just add this to make test pass*/
 
 	/* Check results OK */
 	l.sfeq	r1,r2

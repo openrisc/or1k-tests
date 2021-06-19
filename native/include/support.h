@@ -35,6 +35,19 @@
 #include <stddef.h>
 #include <limits.h>
 
+#define NOP_NOP          0x0000      /* Normal nop instruction */
+#define NOP_EXIT         0x0001      /* End of simulation */
+#define NOP_REPORT       0x0002      /* Simple report */
+/*#define NOP_PRINTF       0x0003       Simprintf instruction (obsolete)*/
+#define NOP_PUTC         0x0004      /* JPB: Simputc instruction */
+#define NOP_CNT_RESET    0x0005	     /* Reset statistics counters */
+#define NOP_GET_TICKS    0x0006	     /* JPB: Get # ticks running */
+#define NOP_GET_PS       0x0007      /* JPB: Get picosecs/cycle */
+#define NOP_TRACE_ON     0x0008      /* Turn on tracing */
+#define NOP_TRACE_OFF    0x0009      /* Turn off tracing */
+#define NOP_RANDOM       0x000a      /* Return 4 random bytes */
+#define NOP_OR1KSIM      0x000b      /* Return non-zero if this is Or1ksim */
+
 /* Start function */
 extern void reset ();
 
@@ -44,17 +57,21 @@ extern void exit (int i) __attribute__ ((__noreturn__));
 /* Version of putchar that works with Or1ksim */
 extern int putchar (int c);
 
-/* Prints out a value */
-extern void report (unsigned long int value);
-
 /* Read the simulator timer */
 extern unsigned long int read_timer ();
 
 /* For writing into SPR. */
-extern void  mtspr (unsigned long int spr,
-		    unsigned long int value);
+extern void mtspr (unsigned long spr,
+		   unsigned long value);
 
 /* For reading SPR. */
-extern unsigned long int mfspr (unsigned long int spr);
+extern unsigned long mfspr (unsigned long spr);
+
+/* print long */
+inline void report(unsigned long value)
+{
+  asm("l.addi\tr3,%0,0": :"r" (value) : "r3" );
+  asm("l.nop %0": :"K" (NOP_REPORT));
+}
 
 #endif
