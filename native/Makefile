@@ -1,6 +1,6 @@
 CROSS_COMPILE?=or1k-elf-
 TARGET?=mor1kx_cappuccino
-CFLAGS=-Wall -O2
+CFLAGS=-Wall -O2 -g
 AS = $(CROSS_COMPILE)as
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)gcc
@@ -32,5 +32,5 @@ $(BUILDDIR)/%: %.c lib/libsupport.a
 	$(CC) -Iinclude -Iinclude/$(TARGET) $(CFLAGS) -Llib $< -lsupport -o $@
 
 clean:
-	make -C lib/ clean
+	make CFLAGS="$(CFLAGS)" -C lib/ clean
 	rm -rf $(BUILDDIR)

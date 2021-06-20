@@ -1,4 +1,5 @@
 CROSS_COMPILE?=or1k-elf-
+CFLAGS?=-Wall -O2 -g
 CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 RANLIB = $(CROSS_COMPILE)ranlib
@@ -19,7 +20,7 @@ $(SOBJ): %.o: %.S
 	$(CC) -c $< -o $@
 
 $(COBJ): %.o: %.c
-	$(CC) -I../include -c $< -o $@
+	$(CC) -I../include $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f *.o *.a *~

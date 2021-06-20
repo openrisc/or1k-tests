@@ -61,11 +61,18 @@ extern int putchar (int c);
 extern unsigned long int read_timer ();
 
 /* For writing into SPR. */
-extern void mtspr (unsigned long spr,
-		   unsigned long value);
+inline void mtspr(unsigned long spr, unsigned long value)
+{
+  asm volatile ("l.mtspr\t\t%0,%1,0; l.nop; l.nop": : "r" (spr), "r" (value));
+}
 
 /* For reading SPR. */
-extern unsigned long mfspr (unsigned long spr);
+inline unsigned long mfspr(unsigned long spr)
+{
+  unsigned long value;
+  asm volatile ("l.mfspr\t\t%0,%1,0" : "=r" (value) : "r" (spr));
+  return value;
+}
 
 /* print long */
 inline void report(unsigned long value)

@@ -198,8 +198,7 @@ static void fail (char *func, int line)
 
 static void call (unsigned long add)
 {
-  asm("l.jalr\t\t%0" : : "r" (add) : "r9", "r11");
-  asm("l.nop" : :);
+  asm volatile ("l.jalr\t\t%0; l.nop" : : "r" (add) : "r9", "r11");
 }
 
 /* Bus error exception handler */
