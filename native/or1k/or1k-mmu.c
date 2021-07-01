@@ -65,6 +65,12 @@
 #include "support.h"
 #include "board.h"
 
+/* These are defined wrong in newlib, fix them here until patch goes upstream.  */
+#undef OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK
+#undef OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK
+#define OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK   0x00000080
+#define OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK   0x00000040
+
 #define ITLB_PR_NOLIMIT  (OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK | \
                           OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK)
 
@@ -142,6 +148,11 @@ static void immu_disable (void);
 #define OR32_L_JR_R9 0x44004800
 #define OR32_L_NOP 0x15000000
 
+enum protection {
+  user_mode,
+  supervisor_mode
+};
+
 /* DTLB mode status */
 static volatile unsigned long dtlb_val;
 
@@ -177,16 +188,12 @@ static unsigned long dtlb_ways;
 static unsigned long itlb_sets;
 static unsigned long itlb_ways;
 
-#define sys_call() __asm__ __volatile__("l.sys\t0");
-
 static void fail (char *func, int line)
 {
 #ifndef __FUNCTION__
 #define __FUNCTION__ "?"
 #endif
 
-  /* Trigger sys call exception to enable supervisor mode again */
-  sys_call();
 
   immu_disable ();
   dmmu_disable ();
@@ -224,13 +231,6 @@ static void ill_insn_handler (void)
   puts("Test failed: Illegal insn");
   report (0xeeeeeeee);
   exit (1);
-}
-
-/* Sys call exception handler */
-static void sys_call_handler (void)
-{
-  /* Set supervisor mode */
-  mtspr (OR1K_SPR_SYS_ESR_BASE, mfspr (OR1K_SPR_SYS_ESR_BASE) | OR1K_SPR_SYS_SR_SM_MASK);
 }
 
 static volatile int (*dtlb_set_translate)(int set);
@@ -837,7 +837,7 @@ static int dtlb_valid_bit_test (int set)
 Set various permissions, perform r/w access
 in user and supervisor mode and chack triggering
 of page fault exceptions */
-static int dtlb_permission_test (int set)
+static int dtlb_permission_test (int set, enum protection mode)
 {
   unsigned long ea, tmp;
 
@@ -863,76 +863,65 @@ static int dtlb_permission_test (int set)
   dpage_fault_count = 0;
   dpage_fault_ea = 0;
 
-  /* Write supervisor */
-  dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK));
-
   /* Enable DMMU */
   dmmu_enable();
 
-  puts ("check 1 - page fault writes");
-  REG32(ea + 0) = 0x00112233;
-  REG32(ea + 4) = 0x44556677;
-  REG32(ea + 8) = 0x8899aabb;
-  REG32(ea + 12) = 0xccddeeff;
-  //ASSERT(dpage_fault_count == 1); // on mor1kx the unset SWE flag doesn't always
-  // trigger a page fault TODO find out why
+  if (mode == supervisor_mode) {
+    /* Write supervisor */
+    dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK;
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SWE_MASK));
 
-  /* Read supervisor */
-  dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK));
+    puts ("check 1 - page fault writes");
+    REG32(ea + 0) = 0x00112233;
+    REG32(ea + 4) = 0x44556677;
+    REG32(ea + 8) = 0x8899aabb;
+    REG32(ea + 12) = 0xccddeeff;
+    ASSERT(dpage_fault_count == 1);
 
-  puts ("check 2 - page fault reads");
-  tmp = REG32(ea + 0);
-  ASSERT(tmp == 0x00112233);
-  tmp = REG32(ea + 4);
-  ASSERT(tmp == 0x44556677);
-  tmp = REG32(ea + 8);
-  ASSERT(tmp == 0x8899aabb);
-  tmp = REG32(ea + 12);
-  //ASSERT(dpage_fault_count == 2); TODO SRE too
-  ASSERT(tmp == 0xccddeeff);
+    /* Read supervisor */
+    dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK;
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_SRE_MASK));
 
-  dpage_fault_count = 0;
+    puts ("check 2 - page fault reads");
+    tmp = REG32(ea + 0);
+    ASSERT(tmp == 0x00112233);
+    tmp = REG32(ea + 4);
+    ASSERT(tmp == 0x44556677);
+    tmp = REG32(ea + 8);
+    ASSERT(tmp == 0x8899aabb);
+    tmp = REG32(ea + 12);
+    ASSERT(dpage_fault_count == 2);
+    ASSERT(tmp == 0xccddeeff);
 
-  /* Write user */
-  dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK));
+  } else {
 
-  /* Set user mode */
-  mtspr (OR1K_SPR_SYS_SR_ADDR, mfspr (OR1K_SPR_SYS_SR_ADDR) & ~OR1K_SPR_SYS_SR_SM_MASK);
+    /* Write user */
+    dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK;
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_UWE_MASK));
 
-  puts ("check 3 - page fault writes user-mode");
-  REG32(ea + 0) = 0xffeeddcc;
-  REG32(ea + 4) = 0xbbaa9988;
-  REG32(ea + 8) = 0x77665544;
-  REG32(ea + 12) = 0x33221100;
-  ASSERT(dpage_fault_count == 1);
+    puts ("check 1 - page fault writes user-mode");
+    REG32(ea + 0) = 0xffeeddcc;
+    REG32(ea + 4) = 0xbbaa9988;
+    REG32(ea + 8) = 0x77665544;
+    REG32(ea + 12) = 0x33221100;
+    ASSERT(dpage_fault_count == 1);
 
-  /* Trigger sys call exception to enable supervisor mode again */
-  sys_call ();
+    /* Read user mode */
+    dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_URE_MASK;
+    mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_URE_MASK));
 
-  /* Read user mode */
-  dtlb_val = DTLB_PR_NOLIMIT | OR1K_SPR_DMMU_DTLBW_TR_URE_MASK;
-  mtspr (OR1K_SPR_DMMU_DTLBW_TR_ADDR(dtlb_ways - 1, set), ea | (DTLB_PR_NOLIMIT & ~OR1K_SPR_DMMU_DTLBW_TR_URE_MASK));
+    puts ("check 2 - page fault reads user-mode");
 
-  /* Set user mode */
-  mtspr (OR1K_SPR_SYS_SR_ADDR, mfspr (OR1K_SPR_SYS_SR_ADDR) & ~OR1K_SPR_SYS_SR_SM_MASK);
-
-  puts ("check 4 - page fault reads user-mode");
-
-  tmp = REG32(ea + 0);
-  ASSERT(tmp == 0xffeeddcc);
-  tmp = REG32(ea + 4);
-  ASSERT(tmp == 0xbbaa9988);
-  tmp = REG32(ea + 8);
-  ASSERT(tmp == 0x77665544);
-  tmp = REG32(ea + 12);
-  ASSERT(dpage_fault_count == 2);
-  ASSERT(tmp == 0x33221100);
-
-  /* Trigger sys call exception to enable supervisor mode again */
-  sys_call ();
+    tmp = REG32(ea + 0);
+    ASSERT(tmp == 0xffeeddcc);
+    tmp = REG32(ea + 4);
+    ASSERT(tmp == 0xbbaa9988);
+    tmp = REG32(ea + 8);
+    ASSERT(tmp == 0x77665544);
+    tmp = REG32(ea + 12);
+    ASSERT(dpage_fault_count == 2);
+    ASSERT(tmp == 0x33221100);
+  }
 
   /* Disable DMMU */
   dmmu_disable();
@@ -941,7 +930,6 @@ static int dtlb_permission_test (int set)
 
   return 0;
 }
-
 
 /* Dcache test - check inhibit
    Write data with cache inhibit on and off, check for coherency
@@ -1293,7 +1281,7 @@ static int itlb_valid_bit_test (int set)
 Set various permissions, perform r/w access
 in user and supervisor mode and chack triggering
 of page fault exceptions */
-static int itlb_permission_test (int set)
+static int itlb_permission_test (int set, enum protection mode)
 {
   unsigned long ea;
 
@@ -1329,33 +1317,28 @@ static int itlb_permission_test (int set)
   /* Enable IMMU */
   immu_enable ();
 
-  /* Execute supervisor */
-  puts ("check 1 - page fault exec supervisor");
-  itlb_val = OR1K_SPR_IMMU_ITLBW_TR_CI_MASK | OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK;
-  mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), ea | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK));
+  if (mode == supervisor_mode) {
+    /* Execute supervisor */
+    puts ("check 1 - page fault exec supervisor");
+    itlb_val = OR1K_SPR_IMMU_ITLBW_TR_CI_MASK | OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK;
+    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), ea | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_SXE_MASK));
 
-  call (ea);
-  ASSERT(ipage_fault_count == 1);
-  call (ea + 8);
-  ASSERT(ipage_fault_count == 1);
+    call (ea);
+    ASSERT(ipage_fault_count == 1);
+    call (ea + 8);
+    ASSERT(ipage_fault_count == 1);
 
-  /* Execute user */
-  itlb_val = OR1K_SPR_IMMU_ITLBW_TR_CI_MASK | OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK;
-  mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), ea | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK));
+  } else {
+    puts ("check 1 - page fault exec user");
+    /* Execute user */
+    itlb_val = OR1K_SPR_IMMU_ITLBW_TR_CI_MASK | OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK;
+    mtspr (OR1K_SPR_IMMU_ITLBW_TR_ADDR(itlb_ways - 1, set), ea | (ITLB_PR_NOLIMIT & ~OR1K_SPR_IMMU_ITLBW_TR_UXE_MASK));
 
-  ipage_fault_count = 0;
-
-  /* Set user mode */
-  puts ("check 2 - page fault exec user");
-  mtspr (OR1K_SPR_SYS_SR_ADDR, mfspr (OR1K_SPR_SYS_SR_ADDR) & ~OR1K_SPR_SYS_SR_SM_MASK);
-  call (ea);
-// TODO Failed here too no ipagefault for missing UXE mask
-//  ASSERT(ipage_fault_count == 1);
-  call (ea + 8);
-//  ASSERT(ipage_fault_count == 1);
-
-  /* Trigger sys call exception to enable supervisor mode again */
-  sys_call ();
+    call (ea);
+    ASSERT(ipage_fault_count == 1);
+    call (ea + 8);
+    ASSERT(ipage_fault_count == 1);
+  }
 
   /* Disable IMMU */
   immu_disable ();
@@ -1425,9 +1408,6 @@ int main (void)
   /* Register illegal insn handler */
   or1k_exception_handler_add (0x7, ill_insn_handler);
 
-  /* Register sys call handler */
-  or1k_exception_handler_add (0xc, sys_call_handler);
-
 #ifdef SHORT_TEST
   puts("Running short tlb set tests");
   test_dtlb_sets = test_itlb_sets = TLB_DATA_SET_NB + SHORT_TEST_NUM;
@@ -1452,7 +1432,7 @@ int main (void)
 
   /* Permission test */
   for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 1); i++)
-    dtlb_permission_test (i);
+    dtlb_permission_test (i, supervisor_mode);
   /* Data cache test */
 
   for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 2); i++)
@@ -1474,7 +1454,18 @@ int main (void)
 
   /* Permission test */
   for (i = TLB_TEXT_SET_NB; i < (test_itlb_sets - 1); i++)
-    itlb_permission_test (i);
+    itlb_permission_test (i, supervisor_mode);
+
+  /* Run user mode tests - after this no going back to supervisor mode */
+
+  /* Set user mode */
+  mtspr (OR1K_SPR_SYS_SR_ADDR, mfspr (OR1K_SPR_SYS_SR_ADDR) & ~OR1K_SPR_SYS_SR_SM_MASK);
+
+  for (i = TLB_DATA_SET_NB; i < (test_dtlb_sets - 1); i++)
+    dtlb_permission_test (i, user_mode);
+
+  for (i = TLB_TEXT_SET_NB; i < (test_itlb_sets - 1); i++)
+    itlb_permission_test (i, user_mode);
 
   report (0x8000000d);
   exit (0);
