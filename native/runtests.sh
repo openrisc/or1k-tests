@@ -76,13 +76,16 @@ fi
 
 echo "Running test with test filter: '$TEST_PATTERN' timeout: '$TEST_TIMEOUT'"
 if [ "$TARGET_ARGS" ] ; then
-  echo "  TARGET_ARGS  '$TARGET_ARGS'"
+  echo "  TARGET_ARGS '$TARGET_ARGS'"
 fi
 if [ "$CORE_ARGS" ] ; then
   echo "  CORE_ARGS '$CORE_ARGS'"
 fi
 if [ "$EXPECTED_FAILURES" ] ; then
   echo "  EXPECTED_FAILURES '$EXPECTED_FAILURES'"
+fi
+if [ "$ARTIFACT_PATH" ] ; then
+  echo "  ARTIFACT_PATH '$ARTIFACT_PATH'"
 fi
 
 if [ -z "$TARGET" ] ; then
@@ -149,6 +152,11 @@ for test_path in $DIR/build/or1k/${TEST_PATTERN}; do
 
   cat $test_log >> runtests.log
   rm $test_log
+
+  if [ "$ARTIFACT_PATH" ] ; then
+    mkdir -p artifacts/$test_name
+    cp $ARTIFACT_PATH/*.{log,vcd} artifacts/$test_name/
+  fi
 
   if [ "$sigint_exit" ] ; then
     exit 1
