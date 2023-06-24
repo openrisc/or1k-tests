@@ -9,6 +9,7 @@ or1k/or1k-dsxinsn.S
 or1k/or1k-dsx.S
 or1k/or1k-ext.S
 or1k/or1k-ffl1.S
+or1k/or1k-fpe.S
 or1k/or1k-icache.S
 or1k/or1k-illegalinsndelayslot.S
 or1k/or1k-illegalinsn.S
